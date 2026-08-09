@@ -1,4 +1,9 @@
 
+using DotNetEnv;
+using Microsoft.EntityFrameworkCore;
+using Parkly_Backend.Data;
+using System;
+
 namespace Parkly_Backend
 {
     public class Program
@@ -7,7 +12,11 @@ namespace Parkly_Backend
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            Env.Load();
+            var connectionString = Environment.GetEnvironmentVariable("Connection_String");
             // Add services to the container.
+            builder.Services.AddDbContext<AppDbContext>(options =>
+                options.UseNpgsql(connectionString));
 
             builder.Services.AddControllers();
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
