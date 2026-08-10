@@ -5,7 +5,7 @@ namespace Parkly_Backend.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class AuthController : ControllerBase
+    public class TransactionsController : ControllerBase
     {
     }
 }
