@@ -1,7 +1,10 @@
 
 using DotNetEnv;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using Microsoft.Extensions.Options;
 using Parkly_Backend.Data;
 using Parkly_Backend.Interfaces;
@@ -38,11 +41,31 @@ namespace Parkly_Backend
                 options.UseNpgsql(connectionString));
             builder.Services.AddIdentity<AppUser, IdentityRole<Guid>>(options =>
             {
+                // for test and development
+                options.Password.RequireDigit = false;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequireLowercase = false;
                 options.Password.RequiredLength = 8;
                 options.User.RequireUniqueEmail = true;
             }
 
             ).AddEntityFrameworkStores<AppDbContext>().AddDefaultTokenProviders();
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = false,
+                        ValidateLifetime = false,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = Environment.GetEnvironmentVariable("Issuer"),
+                        ValidAudience = Environment.GetEnvironmentVariable("Audience"),
+                        IssuerSigningKey = new SymmetricSecurityKey(
+                            Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("SecretKey")))
+                    };
+                });
             builder.Services.AddScoped<IAccountService, AccountService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
             // builder.Services.AddScoped<IReservationsService, ReservationsService>();
