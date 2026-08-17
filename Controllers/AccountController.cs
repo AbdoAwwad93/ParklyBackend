@@ -8,7 +8,7 @@ using Parkly_Backend.Services.Interfaces;
 
 namespace Parkly_Backend.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/auth")]
     [ApiController]
     public class AccountController : ControllerBase
     {
@@ -19,7 +19,14 @@ namespace Parkly_Backend.Controllers
             _service = service;
             _userManager = userManager;
         }
-        [HttpPost("/register")]
+        /// <summary>Registers a new user account in the system.</summary>
+        /// <param name="user">The registration details.</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating the result of the registration.</returns>
+        /// <response code="200">Registration succeeded.</response>
+        /// <response code="400">Validation failed or the email is already registered.</response>
+        [HttpPost("register")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Register(RegisterDTO user)
         {
             if(!ModelState.IsValid)
@@ -36,7 +43,16 @@ namespace Parkly_Backend.Controllers
             return Ok(result);
            
         }
-        [HttpPost("/login")]
+        /// <summary>Authenticates a user and returns a JWT token.</summary>
+        /// <param name="login">The login credentials.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> whose <c>Data</c> is the JWT token on success.</returns>
+        /// <response code="200">Login succeeded; a JWT token is returned.</response>
+        /// <response code="400">Validation failed.</response>
+        /// <response code="401">Invalid credentials.</response>
+        [HttpPost("login")]
+        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> LogIn(LoginDTO login)
         {
             if (!ModelState.IsValid)
