@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Parkly_Backend.Data;
+using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.Enums;
@@ -67,6 +68,7 @@ namespace Parkly_Backend
                     };
                 });
             builder.Services.AddScoped<IAccountService, AccountService>();
+            builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
             // builder.Services.AddScoped<IReservationsService, ReservationsService>();
             // builder.Services.AddScoped<IParkingSpacesService,ParkingSpacesService>();
