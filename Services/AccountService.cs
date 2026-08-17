@@ -14,11 +14,9 @@ namespace Parkly_Backend.Services.Implemention
     public class AccountService:IAccountService
     {
         private readonly UserManager<AppUser> _userManager;
-        private readonly IConfiguration _configuration;
-        public AccountService(UserManager<AppUser> userManager, IConfiguration configuration)
+        public AccountService(UserManager<AppUser> userManager)
         {
             _userManager = userManager;
-            _configuration = configuration;
         }
         public string GenerateJwtToken(AppUser user)
         {
@@ -31,12 +29,13 @@ namespace Parkly_Backend.Services.Implemention
             };
 
             //SigningCredentials
-            var Key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes( _configuration["JWT:SecretKey"]));
+            var SecretKey = Environment.GetEnvironmentVariable("SecretKey");
+            var Key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SecretKey));
             var sc = new SigningCredentials(Key, SecurityAlgorithms.HmacSha256 );
             var token = new JwtSecurityToken(
                 claims: claims,
-                issuer: _configuration["JWT:Issuer"],
-                audience: _configuration["JWT:Audience"],
+                issuer: Environment.GetEnvironmentVariable("Issuer"),
+                audience: Environment.GetEnvironmentVariable("Audience"),
                 expires: DateTime.Now.AddHours(1),
                 signingCredentials: sc
                 
