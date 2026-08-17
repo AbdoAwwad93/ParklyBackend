@@ -30,6 +30,11 @@ namespace Parkly_Backend.Data.Repositories
         {
             return await _context.Set<T>().AnyAsync(predicate);
         }
+
+        public IQueryable<T> Query()
+        {
+            return _context.Set<T>();
+        }
         
         public async Task AddAsync(T entity)
         {

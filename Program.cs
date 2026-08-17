@@ -69,6 +69,7 @@ namespace Parkly_Backend
                 });
             builder.Services.AddScoped<IAccountService, AccountService>();
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+            builder.Services.AddScoped<IPricingService, PricingService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
             // builder.Services.AddScoped<IReservationsService, ReservationsService>();
             // builder.Services.AddScoped<IParkingSpacesService,ParkingSpacesService>();

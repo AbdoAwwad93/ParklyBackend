@@ -18,7 +18,9 @@ namespace Parkly_Backend.Mappings
                 .ForMember(dest => dest.Reservations, opt => opt.Ignore())
                 .ForMember(dest => dest.Disputes, opt => opt.Ignore());
 
-            CreateMap<Reservation, ReservationDTO>().ReverseMap();
+            CreateMap<Reservation, ReservationResponseDTO>()
+                .ForMember(dest => dest.ParkingId, opt => opt.MapFrom(src => src.ParkingSpace.ParkingId))
+                .ForMember(dest => dest.SpotNumber, opt => opt.MapFrom(src => src.ParkingSpace.SpotNumber));
             CreateMap<Parking, ParkingDTO>().ReverseMap();
             CreateMap<Review, ReviewDTO>().ReverseMap();
             CreateMap<AppUser, ProfileDTO>().ReverseMap();

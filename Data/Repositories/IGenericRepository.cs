@@ -8,6 +8,7 @@ namespace Parkly_Backend.Data.Repositories
         Task<T?> GetByIdAsync(Guid id);
         Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate);
         Task<bool> AnyAsync(Expression<Func<T, bool>> predicate);
+        IQueryable<T> Query();
         Task AddAsync(T entity);
         void Update(T entity);
         void Delete(T entity);
