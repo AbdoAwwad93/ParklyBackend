@@ -50,8 +50,6 @@ namespace Parkly_Backend
                 options.Password.RequiredLength = 8;
                 options.User.RequireUniqueEmail = true;
             }
-
-
             ).AddEntityFrameworkStores<AppDbContext>().AddDefaultTokenProviders();
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
