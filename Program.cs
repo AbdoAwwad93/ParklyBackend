@@ -51,7 +51,6 @@ namespace Parkly_Backend
                 options.User.RequireUniqueEmail = true;
             }
 
-
             ).AddEntityFrameworkStores<AppDbContext>().AddDefaultTokenProviders();
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
