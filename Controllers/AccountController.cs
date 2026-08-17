@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
+using Parkly_Backend.Models.Response;
 using Parkly_Backend.Services.Interfaces;
-using Superpower.Parsers;
 
 namespace Parkly_Backend.Controllers
 {
@@ -24,15 +24,16 @@ namespace Parkly_Backend.Controllers
         {
             if(!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                var response = ApiResponse.FromModelState("Invalid request", ModelState);
+                return BadRequest(response);
             }
             var result = await _service.Register(user);
-            if (!result.success)
+            if (!result.IsSuccess)
             {
-                return BadRequest("An error occurred or email is exists");
+                return BadRequest(result);
             }
             
-            return Ok("Account Created Successfully");
+            return Ok(result);
            
         }
         [HttpPost("/login")]
@@ -40,14 +41,14 @@ namespace Parkly_Backend.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
             }
             var result = await _service.LogIn(login);
-            if (!result.success)
+            if (!result.IsSuccess)
             {
-                return Unauthorized("Invalid Email or PassWord");
+                return Unauthorized(result);
             }
-            return Ok($"token:result.Token");
+            return Ok(result);
 
         }
 

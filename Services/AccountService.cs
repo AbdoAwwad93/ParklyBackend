@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
+using Parkly_Backend.Models.Response;
 using Parkly_Backend.Services.Interfaces;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -44,12 +45,12 @@ namespace Parkly_Backend.Services.Implemention
 
         }
 
-        public async Task<(bool success, string message)> Register(RegisterDTO user)
+        public async Task<ApiResponse> Register(RegisterDTO user)
         {
             var exUser = await _userManager.FindByEmailAsync(user.Email);
             if(exUser!=null)
             {
-                return (false, "This Email is already exists");
+                return ApiResponse.Failure("This Email is already exists");
             }
             var newUser = new AppUser
             {
@@ -61,27 +62,27 @@ namespace Parkly_Backend.Services.Implemention
             IdentityResult result = await _userManager.CreateAsync(newUser,user.Password);
             if (!result.Succeeded) {
 
-                var errors = string.Join(",",result.Errors.Select(e => e.Description));
-                return (false, errors);
+                var errors = result.Errors.Select(e => e.Description).ToList();
+                return ApiResponse.Failure("Account creation failed", errors);
             
             }
-            return (true, "Account is created successfully!");
+            return ApiResponse.Success("Account is created successfully!");
         }
-        public async Task<(bool success, string message, string? Token)> LogIn(LoginDTO login)
+        public async Task<ApiResponse<string>> LogIn(LoginDTO login)
         {
            var user= await _userManager.FindByEmailAsync(login.Email);
             if (user == null) {
 
-                return (false, "Invalid Email or Password", null);
+                return ApiResponse<string>.Failure("Invalid Email or Password");
             }
             var isPasswordValid = await _userManager.CheckPasswordAsync(user, login.Password);
             if (!isPasswordValid) {
 
-                return (false, "Invalid Email or Password", null);
+                return ApiResponse<string>.Failure("Invalid Email or Password");
             }
             var token = GenerateJwtToken(user);
 
-            return (true, "Login Successful", token);
+            return ApiResponse<string>.Success("Login Successful", token);
 
         }
 
