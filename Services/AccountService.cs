@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
+using AutoMapper;
 using Microsoft.IdentityModel.Tokens;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
@@ -15,9 +16,11 @@ namespace Parkly_Backend.Services.Implemention
     public class AccountService:IAccountService
     {
         private readonly UserManager<AppUser> _userManager;
-        public AccountService(UserManager<AppUser> userManager)
+        private readonly IMapper _mapper;
+        public AccountService(UserManager<AppUser> userManager, IMapper mapper)
         {
             _userManager = userManager;
+            _mapper = mapper;
         }
         public string GenerateJwtToken(AppUser user)
         {
@@ -52,13 +55,7 @@ namespace Parkly_Backend.Services.Implemention
             {
                 return ApiResponse.Failure("This Email is already exists");
             }
-            var newUser = new AppUser
-            {
-                FullName = $"{user.FirstName} {user.LastName}",
-                Email= user.Email,
-                UserName= user.UserName,
-                PhoneNumber=user.Phone,
-            };
+            var newUser = _mapper.Map<AppUser>(user);
             IdentityResult result = await _userManager.CreateAsync(newUser,user.Password);
             if (!result.Succeeded) {
 

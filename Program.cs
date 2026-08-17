@@ -10,6 +10,8 @@ using Parkly_Backend.Models.Enums;
 using Parkly_Backend.Services;
 using Parkly_Backend.Services.Implemention;
 using Parkly_Backend.Services.Interfaces;
+using AutoMapper;
+using Parkly_Backend.Mappings;
 using System;
 
 namespace Parkly_Backend
@@ -33,11 +35,12 @@ namespace Parkly_Backend
             }
 
             ).AddEntityFrameworkStores<AppDbContext>().AddDefaultTokenProviders();
-            builder.Services.AddScoped<IAccountService,AccountService>();
-           // builder.Services.AddScoped<IReservationsService, ReservationsService>();
-           // builder.Services.AddScoped<IParkingSpacesService,ParkingSpacesService>();
+            builder.Services.AddScoped<IAccountService, AccountService>();
+            builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
+            // builder.Services.AddScoped<IReservationsService, ReservationsService>();
+            // builder.Services.AddScoped<IParkingSpacesService,ParkingSpacesService>();
 
-            
+
 
             builder.Services.AddControllers();
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -50,7 +53,7 @@ namespace Parkly_Backend
             {
                 app.MapOpenApi();
                 app.UseSwaggerUI(options =>
-                options.SwaggerEndpoint("/openApi/v1.json","v1"));
+                options.SwaggerEndpoint("/openApi/v1.json", "v1"));
             }
 
             app.UseHttpsRedirection();
