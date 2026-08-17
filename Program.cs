@@ -13,6 +13,7 @@ using Parkly_Backend.Services.Interfaces;
 using AutoMapper;
 using Parkly_Backend.Mappings;
 using System;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 
 namespace Parkly_Backend
 {
@@ -23,6 +24,13 @@ namespace Parkly_Backend
             var builder = WebApplication.CreateBuilder(args);
 
             Env.Load();
+            builder.Services.AddControllers().AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+            }).ConfigureApiBehaviorOptions(options =>
+            {
+                options.SuppressModelStateInvalidFilter = true;
+            });
             //var connectionString = Environment.GetEnvironmentVariable("Connection_String");
             var connectionString = builder.Configuration.GetConnectionString("Connection_String");
             // Add services to the container.
@@ -41,8 +49,6 @@ namespace Parkly_Backend
             // builder.Services.AddScoped<IParkingSpacesService,ParkingSpacesService>();
 
 
-
-            builder.Services.AddControllers();
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
 
