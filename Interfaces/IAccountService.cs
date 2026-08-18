@@ -7,7 +7,7 @@ namespace Parkly_Backend.Services.Interfaces
    public interface IAccountService
     {
         public Task<ApiResponse> Register(RegisterDTO newUser);
-        public Task<ApiResponse<string>> LogIn(LoginDTO login);
+        public Task<ApiResponse<LoginResponseDTO>> LogIn(LoginDTO login);
 
     }
 }

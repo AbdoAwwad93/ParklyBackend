@@ -29,6 +29,7 @@ namespace Parkly_Backend.Services.Implemention
               new Claim(ClaimTypes.Name,user.UserName),
               new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
               new Claim(ClaimTypes.Email,user.Email),
+              new Claim(ClaimTypes.Role, user.Role.ToString()),
               new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString())
             };
 
@@ -65,21 +66,23 @@ namespace Parkly_Backend.Services.Implemention
             }
             return ApiResponse.Success("Account is created successfully!");
         }
-        public async Task<ApiResponse<string>> LogIn(LoginDTO login)
+        public async Task<ApiResponse<LoginResponseDTO>> LogIn(LoginDTO login)
         {
            var user= await _userManager.FindByEmailAsync(login.Email);
             if (user == null) {
 
-                return ApiResponse<string>.Failure("Invalid Email or Password");
+                return ApiResponse<LoginResponseDTO>.Failure("Invalid Email or Password");
             }
             var isPasswordValid = await _userManager.CheckPasswordAsync(user, login.Password);
             if (!isPasswordValid) {
 
-                return ApiResponse<string>.Failure("Invalid Email or Password");
+                return ApiResponse<LoginResponseDTO>.Failure("Invalid Email or Password");
             }
-            var token = GenerateJwtToken(user);
 
-            return ApiResponse<string>.Success("Login Successful", token);
+            var data = _mapper.Map<LoginResponseDTO>(user);
+            data.Token = GenerateJwtToken(user);
+
+            return ApiResponse<LoginResponseDTO>.Success("Login Successful", data);
 
         }
 

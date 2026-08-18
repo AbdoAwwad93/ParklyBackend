@@ -51,9 +51,9 @@ namespace Parkly_Backend.Controllers
         /// <response code="400">Validation failed.</response>
         /// <response code="401">Invalid credentials.</response>
         [HttpPost("login")]
-        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<LoginResponseDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<LoginResponseDTO>), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> LogIn(LoginDTO login)
         {
             if (!ModelState.IsValid)
