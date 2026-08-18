@@ -1,7 +1,9 @@
 namespace Parkly_Backend.Models.Response
 {
+    /// <summary>Standard wrapper carrying typed payload data on success.</summary>
     public class ApiResponse<T> : ApiResponse
     {
+        /// <summary>The payload returned on success.</summary>
         public T? Data { get; set; }
 
         public static ApiResponse<T> Success(string message, T data)

@@ -18,6 +18,7 @@ using AutoMapper;
 using Parkly_Backend.Mappings;
 using System;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using Microsoft.OpenApi;
 
 namespace Parkly_Backend
 {
@@ -75,17 +76,49 @@ namespace Parkly_Backend
             // builder.Services.AddScoped<IParkingSpacesService,ParkingSpacesService>();
 
 
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-            builder.Services.AddOpenApi();
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddSwaggerGen(options =>
+            {
+                options.SwaggerDoc("v1", new OpenApiInfo
+                {
+                    Title = "Parkly API",
+                    Version = "v1",
+                    Description = "REST API for the Parkly parking platform. " +
+                        "To call protected endpoints, log in via POST /api/auth/login and use the returned JWT token " +
+                        "with the Authorize button (format: Bearer <token>)."
+                });
+
+                var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+                if (File.Exists(xmlPath))
+                {
+                    options.IncludeXmlComments(xmlPath);
+                }
+
+                options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Description = "Enter your JWT token prefixed with 'Bearer '. Example: Bearer eyJhbGciOi..."
+                });
+
+                options.OperationFilter<Parkly_Backend.Swagger.AuthorizeCheckOperationFilter>();
+                options.OperationFilter<Parkly_Backend.Swagger.ResponseExamplesOperationFilter>();
+            });
 
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
+            var enableSwagger = app.Environment.IsDevelopment()
+                || (Environment.GetEnvironmentVariable("ENABLE_SWAGGER")?.Equals("true", StringComparison.OrdinalIgnoreCase) == true);
+            if (enableSwagger)
             {
-                app.MapOpenApi();
+                app.UseSwagger();
                 app.UseSwaggerUI(options =>
-                options.SwaggerEndpoint("/openApi/v1.json", "v1"));
+                options.SwaggerEndpoint("/swagger/v1/swagger.json", "Parkly API v1"));
             }
 
             app.UseHttpsRedirection();

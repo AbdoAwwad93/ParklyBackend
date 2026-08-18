@@ -10,6 +10,7 @@ namespace Parkly_Backend.Controllers
 {
     [Route("api/auth")]
     [ApiController]
+    [Produces("application/json")]
     public class AccountController : ControllerBase
     {
         private readonly IAccountService _service;
