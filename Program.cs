@@ -36,8 +36,7 @@ namespace Parkly_Backend
             {
                 options.SuppressModelStateInvalidFilter = true;
             });
-            //var connectionString = Environment.GetEnvironmentVariable("Connection_String");
-            var connectionString = builder.Configuration.GetConnectionString("Connection_String");
+            var connectionString = Environment.GetEnvironmentVariable("Connection_String");
             // Add services to the container.
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseNpgsql(connectionString));
