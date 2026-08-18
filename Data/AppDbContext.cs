@@ -21,6 +21,7 @@ namespace Parkly_Backend.Data
         public DbSet<Transaction> Transactions { get; set; }
         public DbSet<AccessLog> AccessLogs { get; set; }
         public DbSet<Dispute> Disputes { get; set; }
+        public DbSet<PasswordResetOtp> PasswordResetOtps { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

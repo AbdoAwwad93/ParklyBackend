@@ -8,6 +8,7 @@ namespace Parkly_Backend.Services.Interfaces
     {
         public Task<ApiResponse> Register(RegisterDTO newUser);
         public Task<ApiResponse<LoginResponseDTO>> LogIn(LoginDTO login);
-
+        public Task<ApiResponse> ForgotPasswordAsync(ForgotPasswordDTO forgotPassword);
+        public Task<ApiResponse> ResetPasswordAsync(ResetPasswordDTO resetPassword);
     }
 }

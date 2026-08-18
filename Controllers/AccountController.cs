@@ -68,6 +68,45 @@ namespace Parkly_Backend.Controllers
             return Ok(result);
 
         }
+        /// <summary>Requests a password reset OTP sent to the user's email.</summary>
+        /// <param name="forgotPassword">The email of the account.</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating the result.</returns>
+        /// <response code="200">The request was processed (generic response, enumeration-safe).</response>
+        /// <response code="400">Validation failed.</response>
+        [HttpPost("forgot-password")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordDTO forgotPassword)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+            var result = await _service.ForgotPasswordAsync(forgotPassword);
+            return Ok(result);
+        }
+
+        /// <summary>Resets the user's password using the OTP received by email.</summary>
+        /// <param name="resetPassword">The email, OTP and new password.</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating the result.</returns>
+        /// <response code="200">Password reset succeeded.</response>
+        /// <response code="400">Validation failed or the OTP is invalid/expired.</response>
+        [HttpPost("reset-password")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ResetPassword(ResetPasswordDTO resetPassword)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+            var result = await _service.ResetPasswordAsync(resetPassword);
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
 
     }
 }
