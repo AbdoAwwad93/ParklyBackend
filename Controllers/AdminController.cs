@@ -7,7 +7,7 @@ using Parkly_Backend.Models.Response;
 
 namespace Parkly_Backend.Controllers
 {
-    [Route("api/admin")]
+    [Route("api/[controller]")]
     [ApiController]
     [Authorize(Roles = "Admin")]
     [Produces("application/json")]

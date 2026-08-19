@@ -73,9 +73,9 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IReservationsService, ReservationsService>();
             builder.Services.AddScoped<IParkingsService, ParkingsService>();
             builder.Services.AddScoped<IAdminService, AdminService>();
+            builder.Services.AddScoped<IParkingSpacesService, ParkingSpacesService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
             // builder.Services.AddScoped<IReservationsService, ReservationsService>();
-            // builder.Services.AddScoped<IParkingSpacesService,ParkingSpacesService>();
 
 
             builder.Services.AddEndpointsApiExplorer();

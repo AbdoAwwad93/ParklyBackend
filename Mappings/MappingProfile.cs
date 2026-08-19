@@ -35,6 +35,10 @@ namespace Parkly_Backend.Mappings
             CreateMap<Parking, ParkingResponseDTO>();
             CreateMap<CreateParkingDTO, Parking>();
             CreateMap<UpdateParkingDTO, Parking>();
+            CreateMap<CreateParkingSpaceDTO, ParkingSpace>();
+            CreateMap<UpdateParkingSpaceDTO, ParkingSpace>();
+            CreateMap<ParkingSpace, ParkingSpaceResponseDTO>()
+                .ForMember(dest => dest.ParkingName, opt => opt.MapFrom(src => src.Parking.Name));
             CreateMap<Review, ReviewDTO>().ReverseMap();
             CreateMap<AppUser, ProfileDTO>().ReverseMap();
             CreateMap<AppUser, LoginResponseDTO>();
