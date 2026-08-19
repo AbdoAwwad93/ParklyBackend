@@ -49,31 +49,6 @@ namespace Parkly_Backend.Services
             return Math.Round(total, 2);
         }
 
-        public async Task<bool> IsSpaceAvailableAsync(Guid spaceId, DateTime arrival, DateTime departure, Guid? excludeReservationId = null)
-        {
-            if (arrival >= departure)
-            {
-                return false;
-            }
-
-            var space = await GetSpaceWithRulesAsync(spaceId);
-
-            if (!space.IsActive || RulesOverlapBlackout(space.Parking.PricingRules, arrival, departure))
-            {
-                return false;
-            }
-
-            var hasOverlap = await _unitOfWork.Repository<Reservation>()
-                .AnyAsync(r =>
-                    r.SpaceId == spaceId &&
-                    r.Status != ReservationStatus.Cancelled &&
-                    r.ArrivalTime < departure &&
-                    r.DepartureTime > arrival &&
-                    (excludeReservationId == null || r.ReservationId != excludeReservationId));
-
-            return !hasOverlap;
-        }
-
         private async Task<ParkingSpace> GetSpaceWithRulesAsync(Guid spaceId)
         {
             var space = await _unitOfWork.Repository<ParkingSpace>().Query()

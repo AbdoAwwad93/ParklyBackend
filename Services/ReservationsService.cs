@@ -13,12 +13,14 @@ namespace Parkly_Backend.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IPricingService _pricingService;
+        private readonly IAvailabilityService _availabilityService;
         private readonly IMapper _mapper;
 
-        public ReservationsService(IUnitOfWork unitOfWork, IPricingService pricingService, IMapper mapper)
+        public ReservationsService(IUnitOfWork unitOfWork, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
             _pricingService = pricingService;
+            _availabilityService = availabilityService;
             _mapper = mapper;
         }
 
@@ -42,7 +44,7 @@ namespace Parkly_Backend.Services
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                if (!await _pricingService.IsSpaceAvailableAsync(dto.SpaceId, dto.ArrivalTime, dto.DepartureTime))
+                if (!await _availabilityService.IsSpaceAvailableAsync(dto.SpaceId, dto.ArrivalTime, dto.DepartureTime))
                 {
                     await _unitOfWork.CommitTransactionAsync();
                     return ApiResponse<ReservationResponseDTO>.Failure("The parking space is unavailable for the requested time window.");
@@ -98,7 +100,7 @@ namespace Parkly_Backend.Services
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                if (!await _pricingService.IsSpaceAvailableAsync(reservation.SpaceId, dto.ArrivalTime, dto.DepartureTime, reservationId))
+                if (!await _availabilityService.IsSpaceAvailableAsync(reservation.SpaceId, dto.ArrivalTime, dto.DepartureTime, reservationId))
                 {
                     await _unitOfWork.CommitTransactionAsync();
                     return ApiResponse<ReservationResponseDTO>.Failure("The parking space is unavailable for the requested time window.");

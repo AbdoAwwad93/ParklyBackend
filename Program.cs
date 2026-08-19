@@ -69,6 +69,7 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IAccountService, AccountService>();
             builder.Services.AddScoped<IEmailService, EmailService>();
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+            builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
             builder.Services.AddScoped<IPricingService, PricingService>();
             builder.Services.AddScoped<IReservationsService, ReservationsService>();
             builder.Services.AddScoped<IParkingsService, ParkingsService>();

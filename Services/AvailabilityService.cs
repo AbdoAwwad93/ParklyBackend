@@ -1,0 +1,96 @@
+using Microsoft.EntityFrameworkCore;
+using Parkly_Backend.Data.Repositories;
+using Parkly_Backend.Interfaces;
+using Parkly_Backend.Models;
+using Parkly_Backend.Models.Enums;
+
+namespace Parkly_Backend.Services
+{
+    public class AvailabilityService : IAvailabilityService
+    {
+        private readonly IUnitOfWork _unitOfWork;
+
+        public AvailabilityService(IUnitOfWork unitOfWork)
+        {
+            _unitOfWork = unitOfWork;
+        }
+
+        public async Task<bool> IsSpaceAvailableAsync(Guid spaceId, DateTime arrival, DateTime departure, Guid? excludeReservationId = null)
+        {
+            if (arrival >= departure)
+            {
+                return false;
+            }
+
+            var space = await GetSpaceWithRulesAsync(spaceId);
+
+            if (!space.IsActive || RulesOverlapBlackout(space.Parking.PricingRules, arrival, departure))
+            {
+                return false;
+            }
+
+            return !await HasOverlappingReservationAsync(spaceId, arrival, departure, excludeReservationId);
+        }
+
+        public async Task<List<ParkingSpace>> GetAvailableSpacesAsync(Guid parkingId, DateTime arrival, DateTime departure)
+        {
+            if (arrival >= departure)
+            {
+                throw new ArgumentException("Departure time must be after arrival time.");
+            }
+
+            var spaces = await _unitOfWork.Repository<ParkingSpace>().Query()
+                .Include(s => s.Parking)
+                    .ThenInclude(p => p.PricingRules)
+                .Where(s => s.ParkingId == parkingId && s.IsActive)
+                .ToListAsync();
+
+            var available = new List<ParkingSpace>();
+            foreach (var space in spaces)
+            {
+                if (RulesOverlapBlackout(space.Parking.PricingRules, arrival, departure))
+                {
+                    continue;
+                }
+
+                if (await HasOverlappingReservationAsync(space.SpaceId, arrival, departure, null))
+                {
+                    continue;
+                }
+
+                available.Add(space);
+            }
+
+            return available;
+        }
+
+        private async Task<bool> HasOverlappingReservationAsync(Guid spaceId, DateTime arrival, DateTime departure, Guid? excludeReservationId)
+        {
+            return await _unitOfWork.Repository<Reservation>()
+                .AnyAsync(r =>
+                    r.SpaceId == spaceId &&
+                    r.Status != ReservationStatus.Cancelled &&
+                    r.ArrivalTime < departure &&
+                    r.DepartureTime > arrival &&
+                    (excludeReservationId == null || r.ReservationId != excludeReservationId));
+        }
+
+        private async Task<ParkingSpace> GetSpaceWithRulesAsync(Guid spaceId)
+        {
+            var space = await _unitOfWork.Repository<ParkingSpace>().Query()
+                .Include(s => s.Parking)
+                    .ThenInclude(p => p.PricingRules)
+                .FirstOrDefaultAsync(s => s.SpaceId == spaceId);
+
+            return space ?? throw new KeyNotFoundException("Parking space not found.");
+        }
+
+        private static bool RulesOverlapBlackout(List<PricingRule> rules, DateTime arrival, DateTime departure)
+        {
+            return rules.Any(r =>
+                r.RuleType == PricingRuleType.Blackout &&
+                r.StartTime < departure &&
+                r.EndTime > arrival);
+        }
+    }
+}
