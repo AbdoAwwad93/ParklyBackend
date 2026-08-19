@@ -24,7 +24,7 @@ namespace Parkly_Backend
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -71,6 +71,7 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IPricingService, PricingService>();
             builder.Services.AddScoped<IReservationsService, ReservationsService>();
+            builder.Services.AddScoped<IAdminService, AdminService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
             // builder.Services.AddScoped<IReservationsService, ReservationsService>();
             // builder.Services.AddScoped<IParkingSpacesService,ParkingSpacesService>();
@@ -129,7 +130,9 @@ namespace Parkly_Backend
 
             app.MapControllers();
 
-            app.Run();
+            await DataInitialize.InitializeDatabaseAsync(app.Services);
+
+            await app.RunAsync();
         }
     }
 }
