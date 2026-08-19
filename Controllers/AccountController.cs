@@ -44,6 +44,29 @@ namespace Parkly_Backend.Controllers
             return Ok(result);
            
         }
+        /// <summary>Registers a new parking owner account in the system.</summary>
+        /// <param name="user">The owner registration details.</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating the result of the registration.</returns>
+        /// <response code="200">Registration succeeded.</response>
+        /// <response code="400">Validation failed or the email is already registered.</response>
+        [HttpPost("register-owner")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> RegisterOwner(OwnerRegisterDTO user)
+        {
+            if (!ModelState.IsValid)
+            {
+                var response = ApiResponse.FromModelState("Invalid request", ModelState);
+                return BadRequest(response);
+            }
+            var result = await _service.RegisterOwner(user);
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
         /// <summary>Authenticates a user and returns a JWT token.</summary>
         /// <param name="login">The login credentials.</param>
         /// <returns>An <see cref="ApiResponse{T}"/> whose <c>Data</c> is the JWT token on success.</returns>

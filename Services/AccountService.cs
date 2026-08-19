@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
+using Parkly_Backend.Models.Enums;
 using Parkly_Backend.Models.Response;
 using Parkly_Backend.Services.Interfaces;
 using System.IdentityModel.Tokens.Jwt;
@@ -73,6 +74,48 @@ namespace Parkly_Backend.Services.Implemention
             
             }
             return ApiResponse.Success("Account is created successfully!");
+        }
+
+        public async Task<ApiResponse> RegisterOwner(OwnerRegisterDTO newOwner)
+        {
+            var exUser = await _userManager.FindByEmailAsync(newOwner.Email);
+            if (exUser != null)
+            {
+                return ApiResponse.Failure("This Email is already exists");
+            }
+
+            var newUser = _mapper.Map<AppUser>(newOwner);
+            newUser.Role = UserRole.ParkingOwner;
+
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                var result = await _userManager.CreateAsync(newUser, newOwner.Password);
+                if (!result.Succeeded)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    var errors = result.Errors.Select(e => e.Description).ToList();
+                    return ApiResponse.Failure("Account creation failed", errors);
+                }
+
+                var parkingOwner = new ParkingOwner
+                {
+                    OwnerId = newUser.Id,
+                    CompanyName = newOwner.CompanyName,
+                    PayoutAccount = newOwner.PayoutAccount,
+                    VerificationStatus = VerificationStatus.Pending
+                };
+                await _unitOfWork.Repository<ParkingOwner>().AddAsync(parkingOwner);
+                await _unitOfWork.SaveChangesAsync();
+
+                await _unitOfWork.CommitTransactionAsync();
+                return ApiResponse.Success("Parking owner account created successfully!");
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                return ApiResponse.Failure("Parking owner account creation failed.");
+            }
         }
         public async Task<ApiResponse<LoginResponseDTO>> LogIn(LoginDTO login)
         {

@@ -7,3 +7,4 @@ namespace Parkly_Backend.Models.Enums
         Suspended
     }
 }
+
