@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using AutoMapper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models.DTOs;
@@ -13,10 +14,14 @@ namespace Parkly_Backend.Controllers
     public class ParkingsController : ControllerBase
     {
         private readonly IParkingsService _service;
+        private readonly IAvailabilityService _availabilityService;
+        private readonly IMapper _mapper;
 
-        public ParkingsController(IParkingsService service)
+        public ParkingsController(IParkingsService service, IAvailabilityService availabilityService, IMapper mapper)
         {
             _service = service;
+            _availabilityService = availabilityService;
+            _mapper = mapper;
         }
 
         /// <summary>Returns all parking facilities.</summary>
@@ -42,6 +47,42 @@ namespace Parkly_Backend.Controllers
         {
             var result = await _service.GetByIdAsync(id);
             return result.IsSuccess ? Ok(result) : NotFound(result);
+        }
+
+        /// <summary>Returns the parking spaces available in a parking facility for a given time window.</summary>
+        /// <param name="parkingId">The id of the parking facility.</param>
+        /// <param name="arrival">The arrival time.</param>
+        /// <param name="departure">The departure time.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the list of available spaces.</returns>
+        /// <response code="200">Available spaces retrieved successfully.</response>
+        /// <response code="400">Departure time must be after arrival time.</response>
+        [HttpGet("{parkingId:guid}/available")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<List<ParkingSpaceResponseDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetAvailableSpaces(Guid parkingId, [FromQuery] DateTime arrival, [FromQuery] DateTime departure)
+        {
+            if (arrival >= departure)
+            {
+                return BadRequest(ApiResponse.Failure("Departure time must be after arrival time."));
+            }
+
+            var spaces = await _availabilityService.GetAvailableSpacesAsync(parkingId, arrival, departure);
+            var response = _mapper.Map<List<ParkingSpaceResponseDTO>>(spaces);
+            return Ok(ApiResponse<List<ParkingSpaceResponseDTO>>.Success("Available spaces retrieved successfully.", response));
+        }
+
+        /// <summary>Searches for parking facilities with optional filtering and availability counts.</summary>
+        /// <param name="query">The search filter parameters.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the matching parkings with availability details.</returns>
+        /// <response code="200">Search completed successfully.</response>
+        [HttpGet("search")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<List<SearchParkingDTO>>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Search([FromQuery] SearchParkingQuery query)
+        {
+            var result = await _service.SearchAsync(query);
+            return Ok(result);
         }
 
         /// <summary>Creates a new parking facility for the authenticated parking owner.</summary>

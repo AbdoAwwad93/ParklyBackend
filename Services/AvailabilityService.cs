@@ -3,6 +3,7 @@ using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.Enums;
+using System.Globalization;
 
 namespace Parkly_Backend.Services
 {
@@ -24,7 +25,9 @@ namespace Parkly_Backend.Services
 
             var space = await GetSpaceWithRulesAsync(spaceId);
 
-            if (!space.IsActive || RulesOverlapBlackout(space.Parking.PricingRules, arrival, departure))
+            if (!space.IsActive
+                || RulesOverlapBlackout(space.Parking.PricingRules, arrival, departure)
+                || OutsideOperatingHours(space.Parking.OperatingHours, arrival, departure))
             {
                 return false;
             }
@@ -49,6 +52,11 @@ namespace Parkly_Backend.Services
             foreach (var space in spaces)
             {
                 if (RulesOverlapBlackout(space.Parking.PricingRules, arrival, departure))
+                {
+                    continue;
+                }
+
+                if (OutsideOperatingHours(space.Parking.OperatingHours, arrival, departure))
                 {
                     continue;
                 }
@@ -91,6 +99,44 @@ namespace Parkly_Backend.Services
                 r.RuleType == PricingRuleType.Blackout &&
                 r.StartTime < departure &&
                 r.EndTime > arrival);
+        }
+
+        private static bool OutsideOperatingHours(string? operatingHours, DateTime arrival, DateTime departure)
+        {
+            var (open, close) = ParseOperatingHours(operatingHours);
+            if (open == null || close == null)
+            {
+                return false;
+            }
+
+            return arrival.TimeOfDay < open.Value.ToTimeSpan()
+                || departure.TimeOfDay > close.Value.ToTimeSpan();
+        }
+
+        private static (TimeOnly? Open, TimeOnly? Close) ParseOperatingHours(string? operatingHours)
+        {
+            if (string.IsNullOrWhiteSpace(operatingHours))
+            {
+                return (null, null);
+            }
+
+            var parts = operatingHours.Split('-', StringSplitOptions.TrimEntries);
+            if (parts.Length != 2)
+            {
+                return (null, null);
+            }
+
+            if (!TimeOnly.TryParseExact(parts[0], "HH\\:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var open))
+            {
+                return (null, null);
+            }
+
+            if (!TimeOnly.TryParseExact(parts[1], "HH\\:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var close))
+            {
+                return (null, null);
+            }
+
+            return (open, close);
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using AutoMapper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models.DTOs;
@@ -13,10 +14,14 @@ namespace Parkly_Backend.Controllers
     public class ParkingSpacesController : ControllerBase
     {
         private readonly IParkingSpacesService _service;
+        private readonly IAvailabilityService _availabilityService;
+        private readonly IMapper _mapper;
 
-        public ParkingSpacesController(IParkingSpacesService service)
+        public ParkingSpacesController(IParkingSpacesService service, IAvailabilityService availabilityService, IMapper mapper)
         {
             _service = service;
+            _availabilityService = availabilityService;
+            _mapper = mapper;
         }
 
         /// <summary>Returns all parking spaces across all parking facilities.</summary>
@@ -59,6 +64,29 @@ namespace Parkly_Backend.Controllers
         {
             var result = await _service.GetByIdAsync(spaceId);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+
+        /// <summary>Checks whether a parking space is available for a given time window.</summary>
+        /// <param name="spaceId">The id of the parking space.</param>
+        /// <param name="arrival">The arrival time.</param>
+        /// <param name="departure">The departure time.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the availability result.</returns>
+        /// <response code="200">Availability determined.</response>
+        /// <response code="400">Departure time must be after arrival time.</response>
+        [HttpGet("{spaceId:guid}/available")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<SpaceAvailabilityDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> IsAvailable(Guid spaceId, [FromQuery] DateTime arrival, [FromQuery] DateTime departure)
+        {
+            if (arrival >= departure)
+            {
+                return BadRequest(ApiResponse.Failure("Departure time must be after arrival time."));
+            }
+
+            var isAvailable = await _availabilityService.IsSpaceAvailableAsync(spaceId, arrival, departure);
+            var data = new SpaceAvailabilityDTO { SpaceId = spaceId, IsAvailable = isAvailable };
+            return Ok(ApiResponse<SpaceAvailabilityDTO>.Success("Availability checked.", data));
         }
 
         /// <summary>Creates a new parking space for a parking owned by the authenticated parking owner.</summary>

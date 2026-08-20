@@ -10,5 +10,6 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse<ParkingResponseDTO>> CreateAsync(Guid ownerId, CreateParkingDTO dto);
         Task<ApiResponse<ParkingResponseDTO>> UpdateAsync(Guid ownerId, Guid id, UpdateParkingDTO dto);
         Task<ApiResponse> DeleteAsync(Guid ownerId, Guid id);
+        Task<ApiResponse<List<SearchParkingDTO>>> SearchAsync(SearchParkingQuery query);
     }
 }
