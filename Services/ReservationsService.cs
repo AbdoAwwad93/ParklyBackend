@@ -9,7 +9,9 @@ using Parkly_Backend.Models.Response;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Parkly_Backend.Configuration;
 
 namespace Parkly_Backend.Services
 {
@@ -19,13 +21,15 @@ namespace Parkly_Backend.Services
         private readonly IPricingService _pricingService;
         private readonly IAvailabilityService _availabilityService;
         private readonly IMapper _mapper;
+        private readonly JwtOptions _jwtOptions;
 
-        public ReservationsService(IUnitOfWork unitOfWork, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper)
+        public ReservationsService(IUnitOfWork unitOfWork, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper, IOptions<JwtOptions> jwtOptions)
         {
             _unitOfWork = unitOfWork;
             _pricingService = pricingService;
             _availabilityService = availabilityService;
             _mapper = mapper;
+            _jwtOptions = jwtOptions.Value;
         }
 
         public async Task<ApiResponse<ReservationResponseDTO>> CreateAsync(Guid userId, CreateReservationDTO dto)
@@ -175,7 +179,7 @@ namespace Parkly_Backend.Services
             }
 
             var tokenHandler = new JwtSecurityTokenHandler();
-            var keyString = Environment.GetEnvironmentVariable("SecretKey");
+            var keyString = _jwtOptions.SecretKey;
             var key = Encoding.UTF8.GetBytes(keyString);
 
             var tokenDescriptor = new SecurityTokenDescriptor
@@ -186,8 +190,8 @@ namespace Parkly_Backend.Services
                 }),
                 Expires = reservation.DepartureTime.AddHours(24),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
-                Issuer = Environment.GetEnvironmentVariable("Issuer"),
-                Audience = Environment.GetEnvironmentVariable("Audience")
+                Issuer = _jwtOptions.Issuer,
+                Audience = _jwtOptions.Audience
             };
 
             var token = tokenHandler.CreateToken(tokenDescriptor);

@@ -14,6 +14,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Options;
+using Parkly_Backend.Configuration;
 
 namespace Parkly_Backend.Services
 {
@@ -23,13 +25,15 @@ namespace Parkly_Backend.Services
         private readonly IMapper _mapper;
         private readonly IEmailService _emailService;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly JwtOptions _jwtOptions;
         private static readonly Random _random = new Random();
-        public AccountService(UserManager<AppUser> userManager, IMapper mapper, IEmailService emailService, IUnitOfWork unitOfWork)
+        public AccountService(UserManager<AppUser> userManager, IMapper mapper, IEmailService emailService, IUnitOfWork unitOfWork, IOptions<JwtOptions> jwtOptions)
         {
             _userManager = userManager;
             _mapper = mapper;
             _emailService = emailService;
             _unitOfWork = unitOfWork;
+            _jwtOptions = jwtOptions.Value;
         }
         public (string Token, string Jti) GenerateJwtToken(AppUser user)
         {
@@ -44,14 +48,14 @@ namespace Parkly_Backend.Services
             };
 
             //SigningCredentials
-            var SecretKey = Environment.GetEnvironmentVariable("SecretKey");
+            var SecretKey = _jwtOptions.SecretKey;
             var Key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SecretKey));
             var sc = new SigningCredentials(Key, SecurityAlgorithms.HmacSha256 );
             var token = new JwtSecurityToken(
                 claims: claims,
-                issuer: Environment.GetEnvironmentVariable("Issuer"),
-                audience: Environment.GetEnvironmentVariable("Audience"),
-                expires: DateTime.UtcNow.AddMinutes(Convert.ToInt32(Environment.GetEnvironmentVariable("JwtExpiresInMinutes"))),
+                issuer: _jwtOptions.Issuer,
+                audience: _jwtOptions.Audience,
+                expires: DateTime.UtcNow.AddMinutes(_jwtOptions.JwtExpiresInMinutes),
                 signingCredentials: sc
                 
                 );
@@ -68,7 +72,7 @@ namespace Parkly_Backend.Services
                 IsUsed = false,
                 IsRevoked = false,
                 AddedDate = DateTime.UtcNow,
-                ExpiryDate = DateTime.UtcNow.AddMonths(Convert.ToInt32(Environment.GetEnvironmentVariable("RefreshTokenExpiresInMonths"))),
+                ExpiryDate = DateTime.UtcNow.AddMonths(_jwtOptions.RefreshTokenExpiresInMonths),
                 UserId = userId
             };
         }
@@ -294,7 +298,7 @@ namespace Parkly_Backend.Services
 
         private ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
         {
-            var SecretKey = Environment.GetEnvironmentVariable("SecretKey");
+            var SecretKey = _jwtOptions.SecretKey;
             var Key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SecretKey));
             var tokenValidationParameters = new TokenValidationParameters
             {

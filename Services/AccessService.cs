@@ -4,7 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Parkly_Backend.Configuration;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
@@ -18,17 +20,19 @@ namespace Parkly_Backend.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOccupancyService _occupancyService;
+        private readonly JwtOptions _jwtOptions;
 
-        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService)
+        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService, IOptions<JwtOptions> jwtOptions)
         {
             _unitOfWork = unitOfWork;
             _occupancyService = occupancyService;
+            _jwtOptions = jwtOptions.Value;
         }
 
         public async Task<ApiResponse> ProcessScanAsync(AccessScanDTO dto)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var keyString = Environment.GetEnvironmentVariable("SecretKey") ?? "A_very_long_secret_key_for_testing_purposes_only_123";
+            var keyString = _jwtOptions.SecretKey;
             var key = Encoding.UTF8.GetBytes(keyString);
 
             try
@@ -38,7 +42,7 @@ namespace Parkly_Backend.Services
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
                     ValidateIssuer = true,
-                    ValidIssuer = Environment.GetEnvironmentVariable("Issuer"),
+                    ValidIssuer = _jwtOptions.Issuer,
                     ValidateAudience = false,
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.Zero

@@ -1,4 +1,4 @@
-
+using Parkly_Backend.Configuration;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -35,6 +35,24 @@ namespace Parkly_Backend
                 options.SuppressModelStateInvalidFilter = true;
             });
             var connectionString = Environment.GetEnvironmentVariable("Connection_String");
+            
+            builder.Services.Configure<JwtOptions>(options =>
+            {
+                options.SecretKey = Environment.GetEnvironmentVariable("SecretKey") ?? "";
+                options.Issuer = Environment.GetEnvironmentVariable("Issuer") ?? "";
+                options.Audience = Environment.GetEnvironmentVariable("Audience") ?? "";
+                options.JwtExpiresInMinutes = int.TryParse(Environment.GetEnvironmentVariable("JwtExpiresInMinutes"), out var j) ? j : 15;
+                options.RefreshTokenExpiresInMonths = int.TryParse(Environment.GetEnvironmentVariable("RefreshTokenExpiresInMonths"), out var r) ? r : 6;
+            });
+
+            builder.Services.Configure<SmtpOptions>(options =>
+            {
+                options.Host = Environment.GetEnvironmentVariable("SmtpHost") ?? "";
+                options.Port = int.TryParse(Environment.GetEnvironmentVariable("SmtpPort"), out var p) ? p : 587;
+                options.Email = Environment.GetEnvironmentVariable("Email") ?? "";
+                options.Password = Environment.GetEnvironmentVariable("EmailPassword") ?? "";
+            });
+
             // Add services to the container.
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseNpgsql(connectionString));
