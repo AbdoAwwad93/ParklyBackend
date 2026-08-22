@@ -1,10 +1,13 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
 using Parkly_Backend.Models.Response;
 using Parkly_Backend.Services.Interfaces;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using System;
 
 namespace Parkly_Backend.Controllers
 {
@@ -128,6 +131,67 @@ namespace Parkly_Backend.Controllers
             {
                 return BadRequest(result);
             }
+            return Ok(result);
+        }
+
+        /// <summary>Retrieves the profile of the currently authenticated user.</summary>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the user's profile data.</returns>
+        /// <response code="200">Profile retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        [HttpGet("profile")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<ProfileDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetProfile()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out Guid parsedId))
+            {
+                return Unauthorized();
+            }
+
+            var result = await _service.GetProfileAsync(parsedId);
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+
+        /// <summary>Updates the profile of the currently authenticated user.</summary>
+        /// <param name="updateProfile">The new profile details.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the updated profile data.</returns>
+        /// <response code="200">Profile updated successfully.</response>
+        /// <response code="400">Validation failed or profile update failed.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        [HttpPut("profile")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<ProfileDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> UpdateProfile(UpdateProfileDTO updateProfile)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out Guid parsedId))
+            {
+                return Unauthorized();
+            }
+
+            var result = await _service.UpdateProfileAsync(parsedId, updateProfile);
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+
+        /// <summary>Logs out the current user.</summary>
+        /// <returns>An <see cref="ApiResponse"/> indicating success.</returns>
+        /// <response code="200">Logout succeeded.</response>
+        [HttpPost("logout")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> Logout()
+        {
+            var result = await _service.LogoutAsync();
             return Ok(result);
         }
 

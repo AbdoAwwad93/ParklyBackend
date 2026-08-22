@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using AutoMapper;
@@ -216,5 +216,47 @@ namespace Parkly_Backend.Services.Implemention
             return HashOtp(code).Equals(hash, StringComparison.OrdinalIgnoreCase);
         }
 
+        public async Task<ApiResponse<ProfileDTO>> GetProfileAsync(Guid userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return ApiResponse<ProfileDTO>.Failure("User not found.");
+            }
+
+            var profile = _mapper.Map<ProfileDTO>(user);
+
+            return ApiResponse<ProfileDTO>.Success("Profile retrieved successfully.", profile);
+        }
+
+        public async Task<ApiResponse<ProfileDTO>> UpdateProfileAsync(Guid userId, UpdateProfileDTO dto)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return ApiResponse<ProfileDTO>.Failure("User not found.");
+            }
+
+            user.FullName = $"{dto.FirstName} {dto.LastName}".Trim();
+            user.PhoneNumber = dto.PhoneNumber;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => e.Description).ToList();
+                return ApiResponse<ProfileDTO>.Failure("Profile update failed.", errors);
+            }
+
+            var profile = _mapper.Map<ProfileDTO>(user);
+
+            return ApiResponse<ProfileDTO>.Success("Profile updated successfully.", profile);
+        }
+
+        public async Task<ApiResponse> LogoutAsync()
+        {
+            // Stateless JWT logout is primarily handled client-side by dropping the token.
+            // A true backend logout would require a token blocklist.
+            return await Task.FromResult(ApiResponse.Success("Logged out successfully."));
+        }
     }
 }
