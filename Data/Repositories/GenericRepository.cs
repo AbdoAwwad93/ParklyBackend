@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
 namespace Parkly_Backend.Data.Repositories
@@ -49,11 +49,6 @@ namespace Parkly_Backend.Data.Repositories
         public void Delete(T entity)
         {
             _context.Set<T>().Remove(entity);
-        }
-
-        public async Task SaveChangesAsync()
-        {
-            await _context.SaveChangesAsync();
         }
     }
 }

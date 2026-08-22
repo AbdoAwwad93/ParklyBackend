@@ -12,8 +12,6 @@ using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.Enums;
 using Parkly_Backend.Services;
-using Parkly_Backend.Services.Implemention;
-using Parkly_Backend.Services.Interfaces;
 using AutoMapper;
 using Parkly_Backend.Mappings;
 using System;

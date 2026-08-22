@@ -4,7 +4,7 @@ using Parkly_Backend.Models.Response;
 using System;
 using System.Threading.Tasks;
 
-namespace Parkly_Backend.Services.Interfaces
+namespace Parkly_Backend.Interfaces
 {
    public interface IAccountService
     {

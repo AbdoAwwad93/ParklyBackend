@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
 using Parkly_Backend.Models.Response;
-using Parkly_Backend.Services.Interfaces;
+using Parkly_Backend.Interfaces;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using System;

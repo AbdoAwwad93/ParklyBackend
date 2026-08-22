@@ -1,4 +1,4 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 
 namespace Parkly_Backend.Data.Repositories
 {
@@ -12,6 +12,5 @@ namespace Parkly_Backend.Data.Repositories
         Task AddAsync(T entity);
         void Update(T entity);
         void Delete(T entity);
-        Task SaveChangesAsync();
     }
 }

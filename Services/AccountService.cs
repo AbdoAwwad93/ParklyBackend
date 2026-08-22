@@ -9,13 +9,13 @@ using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
 using Parkly_Backend.Models.Enums;
 using Parkly_Backend.Models.Response;
-using Parkly_Backend.Services.Interfaces;
+using Parkly_Backend.Interfaces;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Parkly_Backend.Services.Implemention
+namespace Parkly_Backend.Services
 {
     public class AccountService:IAccountService
     {

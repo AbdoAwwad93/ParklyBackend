@@ -2,11 +2,11 @@ using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
 using MimeKit;
-using Parkly_Backend.Services.Interfaces;
+using Parkly_Backend.Interfaces;
 using System;
 using System.Threading.Tasks;
 
-namespace Parkly_Backend.Services.Implemention
+namespace Parkly_Backend.Services
 {
     public class EmailService : IEmailService
     {
