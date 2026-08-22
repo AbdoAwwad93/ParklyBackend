@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models.DTOs;
@@ -80,6 +80,23 @@ namespace Parkly_Backend.Controllers
         {
             var userId = GetUserId();
             var result = await _service.CancelAsync(userId, id);
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+
+        /// <summary>Generates a QR code token for an existing reservation.</summary>
+        /// <param name="id">The id of the reservation.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the QR code token.</returns>
+        /// <response code="200">QR code generated successfully.</response>
+        /// <response code="400">The QR code could not be generated.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        [HttpGet("{id:guid}/qr")]
+        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetQrCode(Guid id)
+        {
+            var userId = GetUserId();
+            var result = await _service.GetQrCodeAsync(userId, id);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 

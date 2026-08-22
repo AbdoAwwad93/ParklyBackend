@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
@@ -6,6 +6,10 @@ using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
 using Parkly_Backend.Models.Enums;
 using Parkly_Backend.Models.Response;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Parkly_Backend.Services
 {
@@ -152,6 +156,44 @@ namespace Parkly_Backend.Services
                 await _unitOfWork.RollbackTransactionAsync();
                 return ApiResponse.Failure("An error occurred while cancelling the reservation.");
             }
+        }
+
+        public async Task<ApiResponse<string>> GetQrCodeAsync(Guid userId, Guid reservationId)
+        {
+            var reservation = await _unitOfWork.Repository<Reservation>().GetByIdAsync(reservationId);
+            if (reservation == null)
+            {
+                return ApiResponse<string>.Failure("Reservation not found.");
+            }
+            if (reservation.UserId != userId)
+            {
+                return ApiResponse<string>.Failure("You do not have permission to view this reservation.");
+            }
+            if (reservation.Status == ReservationStatus.Cancelled)
+            {
+                return ApiResponse<string>.Failure("Cannot generate QR code for a cancelled reservation.");
+            }
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var keyString = Environment.GetEnvironmentVariable("SecretKey");
+            var key = Encoding.UTF8.GetBytes(keyString);
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[] 
+                { 
+                    new Claim("ReservationId", reservationId.ToString())
+                }),
+                Expires = reservation.DepartureTime.AddHours(24),
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
+                Issuer = Environment.GetEnvironmentVariable("Issuer"),
+                Audience = Environment.GetEnvironmentVariable("Audience")
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            var jwt = tokenHandler.WriteToken(token);
+
+            return ApiResponse<string>.Success("QR code generated successfully.", jwt);
         }
 
         private async Task<ReservationResponseDTO> BuildResponseAsync(Guid reservationId)

@@ -79,9 +79,11 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IParkingsService, ParkingsService>();
             builder.Services.AddScoped<IAdminService, AdminService>();
             builder.Services.AddScoped<IParkingSpacesService, ParkingSpacesService>();
+            builder.Services.AddScoped<IOccupancyService, OccupancyService>();
+            builder.Services.AddScoped<IAccessService, AccessService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
-            // builder.Services.AddScoped<IReservationsService, ReservationsService>();
-
+            
+            builder.Services.AddSignalR();
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
@@ -135,6 +137,7 @@ namespace Parkly_Backend
 
 
             app.MapControllers();
+            app.MapHub<Parkly_Backend.Hubs.OccupancyHub>("/hubs/occupancy");
 
             await DataInitialize.InitializeDatabaseAsync(app.Services);
 
