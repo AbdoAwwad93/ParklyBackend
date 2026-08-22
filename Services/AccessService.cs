@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Parkly_Backend.Configuration;
@@ -21,12 +22,14 @@ namespace Parkly_Backend.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOccupancyService _occupancyService;
         private readonly JwtOptions _jwtOptions;
+        private readonly ILogger<AccessService> _logger;
 
-        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService, IOptions<JwtOptions> jwtOptions)
+        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService, IOptions<JwtOptions> jwtOptions, ILogger<AccessService> logger)
         {
             _unitOfWork = unitOfWork;
             _occupancyService = occupancyService;
             _jwtOptions = jwtOptions.Value;
+            _logger = logger;
         }
 
         public async Task<ApiResponse> ProcessScanAsync(AccessScanDTO dto)
@@ -71,6 +74,7 @@ namespace Parkly_Backend.Services
                 {
                     if (reservation.Status != ReservationStatus.Confirmed)
                     {
+                        _logger.LogWarning("Failed entry scan. Reservation {ReservationId} status is {Status}", reservationId, reservation.Status);
                         return ApiResponse.Failure($"Cannot process Entry. Current status: {reservation.Status}");
                     }
                     reservation.Status = ReservationStatus.CheckedIn;
@@ -79,6 +83,7 @@ namespace Parkly_Backend.Services
                 {
                     if (reservation.Status != ReservationStatus.CheckedIn)
                     {
+                        _logger.LogWarning("Failed exit scan. Reservation {ReservationId} status is {Status}", reservationId, reservation.Status);
                         return ApiResponse.Failure($"Cannot process Exit. Current status: {reservation.Status}");
                     }
                     reservation.Status = ReservationStatus.Completed;
@@ -97,14 +102,18 @@ namespace Parkly_Backend.Services
 
                 await _occupancyService.BroadcastOccupancyUpdateAsync(reservation.ParkingSpace.ParkingId);
 
+                _logger.LogInformation("Successfully processed {ScanType} for Reservation {ReservationId}", dto.ScanType, reservation.ReservationId);
+
                 return ApiResponse.Success($"{dto.ScanType} processed successfully.");
             }
-            catch (SecurityTokenExpiredException)
+            catch (SecurityTokenExpiredException ex)
             {
+                _logger.LogWarning(ex, "QR code has expired");
                 return ApiResponse.Failure("QR code has expired.");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Invalid QR code presented");
                 return ApiResponse.Failure("Invalid QR code.");
             }
         }

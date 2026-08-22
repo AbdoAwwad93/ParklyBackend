@@ -14,6 +14,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Parkly_Backend.Configuration;
 
@@ -26,14 +27,17 @@ namespace Parkly_Backend.Services
         private readonly IEmailService _emailService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly JwtOptions _jwtOptions;
+        private readonly ILogger<AccountService> _logger;
         private static readonly Random _random = new Random();
-        public AccountService(UserManager<AppUser> userManager, IMapper mapper, IEmailService emailService, IUnitOfWork unitOfWork, IOptions<JwtOptions> jwtOptions)
+        
+        public AccountService(UserManager<AppUser> userManager, IMapper mapper, IEmailService emailService, IUnitOfWork unitOfWork, IOptions<JwtOptions> jwtOptions, ILogger<AccountService> logger)
         {
             _userManager = userManager;
             _mapper = mapper;
             _emailService = emailService;
             _unitOfWork = unitOfWork;
             _jwtOptions = jwtOptions.Value;
+            _logger = logger;
         }
         public (string Token, string Jti) GenerateJwtToken(AppUser user)
         {
@@ -89,9 +93,12 @@ namespace Parkly_Backend.Services
             if (!result.Succeeded) {
 
                 var errors = result.Errors.Select(e => e.Description).ToList();
+                _logger.LogWarning("Account creation failed for email {Email}. Errors: {@Errors}", user.Email, errors);
                 return ApiResponse.Failure("Account creation failed", errors);
             
             }
+            
+            _logger.LogInformation("Account created successfully for email {Email}", user.Email);
             return ApiResponse.Success("Account is created successfully!");
         }
 
@@ -140,12 +147,12 @@ namespace Parkly_Backend.Services
         {
            var user= await _userManager.FindByEmailAsync(login.Email);
             if (user == null) {
-
+                _logger.LogWarning("Failed login attempt for email {Email}: User not found.", login.Email);
                 return ApiResponse<LoginResponseDTO>.Failure("Invalid Email or Password");
             }
             var isPasswordValid = await _userManager.CheckPasswordAsync(user, login.Password);
             if (!isPasswordValid) {
-
+                _logger.LogWarning("Failed login attempt for email {Email}: Invalid password.", login.Email);
                 return ApiResponse<LoginResponseDTO>.Failure("Invalid Email or Password");
             }
 
@@ -159,6 +166,7 @@ namespace Parkly_Backend.Services
             data.Token = jwtToken;
             data.RefreshToken = refreshToken.Token;
 
+            _logger.LogInformation("User {Email} logged in successfully.", login.Email);
             return ApiResponse<LoginResponseDTO>.Success("Login Successful", data);
 
         }
@@ -379,6 +387,7 @@ namespace Parkly_Backend.Services
             data.Token = newJwtToken;
             data.RefreshToken = newRefreshToken.Token;
 
+            _logger.LogInformation("Token refreshed successfully for UserId {UserId}.", user.Id);
             return ApiResponse<LoginResponseDTO>.Success("Token refreshed successfully.", data);
         }
     }

@@ -131,11 +131,13 @@ namespace Parkly_Backend
                     Description = "Enter your JWT token prefixed with 'Bearer '. Example: Bearer eyJhbGciOi..."
                 });
 
-                options.OperationFilter<Parkly_Backend.Swagger.AuthorizeCheckOperationFilter>();
-                options.OperationFilter<Parkly_Backend.Swagger.ResponseExamplesOperationFilter>();
+                options.OperationFilter<Swagger.AuthorizeCheckOperationFilter>();
+                options.OperationFilter<Swagger.ResponseExamplesOperationFilter>();
             });
 
             var app = builder.Build();
+
+            app.UseMiddleware<Middleware.GlobalExceptionMiddleware>();
 
             // Configure the HTTP request pipeline.
             var enableSwagger = app.Environment.IsDevelopment()
@@ -154,7 +156,7 @@ namespace Parkly_Backend
 
 
             app.MapControllers();
-            app.MapHub<Parkly_Backend.Hubs.OccupancyHub>("/hubs/occupancy");
+            app.MapHub<Hubs.OccupancyHub>("/hubs/occupancy");
 
             await DataInitialize.InitializeDatabaseAsync(app.Services);
 

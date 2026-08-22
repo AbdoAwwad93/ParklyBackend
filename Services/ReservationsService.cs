@@ -9,6 +9,7 @@ using Parkly_Backend.Models.Response;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Parkly_Backend.Configuration;
@@ -22,14 +23,16 @@ namespace Parkly_Backend.Services
         private readonly IAvailabilityService _availabilityService;
         private readonly IMapper _mapper;
         private readonly JwtOptions _jwtOptions;
+        private readonly ILogger<ReservationsService> _logger;
 
-        public ReservationsService(IUnitOfWork unitOfWork, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper, IOptions<JwtOptions> jwtOptions)
+        public ReservationsService(IUnitOfWork unitOfWork, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper, IOptions<JwtOptions> jwtOptions, ILogger<ReservationsService> logger)
         {
             _unitOfWork = unitOfWork;
             _pricingService = pricingService;
             _availabilityService = availabilityService;
             _mapper = mapper;
             _jwtOptions = jwtOptions.Value;
+            _logger = logger;
         }
 
         public async Task<ApiResponse<ReservationResponseDTO>> CreateAsync(Guid userId, CreateReservationDTO dto)
@@ -74,12 +77,15 @@ namespace Parkly_Backend.Services
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
 
+                _logger.LogInformation("Reservation {ReservationId} created successfully for User {UserId} at Space {SpaceId}", reservation.ReservationId, userId, dto.SpaceId);
+
                 var response = await BuildResponseAsync(reservation.ReservationId);
                 return ApiResponse<ReservationResponseDTO>.Success("Reservation created successfully.", response);
             }
-            catch
+            catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error creating reservation for User {UserId} at Space {SpaceId}", userId, dto.SpaceId);
                 return ApiResponse<ReservationResponseDTO>.Failure("An error occurred while creating the reservation.");
             }
         }
@@ -121,12 +127,15 @@ namespace Parkly_Backend.Services
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
 
+                _logger.LogInformation("Reservation {ReservationId} updated successfully by User {UserId}", reservationId, userId);
+
                 var response = await BuildResponseAsync(reservationId);
                 return ApiResponse<ReservationResponseDTO>.Success("Reservation updated successfully.", response);
             }
-            catch
+            catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error updating Reservation {ReservationId} for User {UserId}", reservationId, userId);
                 return ApiResponse<ReservationResponseDTO>.Failure("An error occurred while updating the reservation.");
             }
         }
@@ -153,11 +162,15 @@ namespace Parkly_Backend.Services
                 reservation.Status = ReservationStatus.Cancelled;
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
+
+                _logger.LogInformation("Reservation {ReservationId} cancelled successfully by User {UserId}", reservationId, userId);
+
                 return ApiResponse.Success("Reservation cancelled successfully.");
             }
-            catch
+            catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error cancelling Reservation {ReservationId} for User {UserId}", reservationId, userId);
                 return ApiResponse.Failure("An error occurred while cancelling the reservation.");
             }
         }
