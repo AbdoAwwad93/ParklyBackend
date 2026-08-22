@@ -183,7 +183,7 @@ namespace Parkly_Backend.Controllers
         }
 
         /// <summary>Logs out the current user by revoking their refresh token.</summary>
-        /// <param name="tokenRequest">The token payload containing the refresh token.</param>
+        /// <param name="tokenRequest">The token payload containing the access token and the refresh token.</param>
         /// <returns>An <see cref="ApiResponse"/> indicating success.</returns>
         /// <response code="200">Logout succeeded.</response>
         [HttpPost("logout")]
