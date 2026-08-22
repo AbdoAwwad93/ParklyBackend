@@ -182,17 +182,34 @@ namespace Parkly_Backend.Controllers
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 
-        /// <summary>Logs out the current user.</summary>
+        /// <summary>Logs out the current user by revoking their refresh token.</summary>
+        /// <param name="tokenRequest">The token payload containing the refresh token.</param>
         /// <returns>An <see cref="ApiResponse"/> indicating success.</returns>
         /// <response code="200">Logout succeeded.</response>
         [HttpPost("logout")]
-        [Authorize]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> Logout()
+        public async Task<IActionResult> Logout([FromBody] TokenRequestDTO tokenRequest)
         {
-            var result = await _service.LogoutAsync();
+            var result = await _service.LogoutAsync(tokenRequest);
             return Ok(result);
+        }
+
+        /// <summary>Refreshes an expired access token using a valid refresh token.</summary>
+        /// <param name="tokenRequest">The token payload containing the expired access token and the refresh token.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the new tokens.</returns>
+        /// <response code="200">Tokens refreshed successfully.</response>
+        /// <response code="400">Tokens are invalid or expired.</response>
+        [HttpPost("refresh-token")]
+        [ProducesResponseType(typeof(ApiResponse<LoginResponseDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<LoginResponseDTO>), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> RefreshToken([FromBody] TokenRequestDTO tokenRequest)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+            var result = await _service.RefreshTokenAsync(tokenRequest);
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 
     }

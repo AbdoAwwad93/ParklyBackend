@@ -15,6 +15,7 @@ namespace Parkly_Backend.Services.Interfaces
         public Task<ApiResponse> ResetPasswordAsync(ResetPasswordDTO resetPassword);
         Task<ApiResponse<ProfileDTO>> GetProfileAsync(Guid userId);
         Task<ApiResponse<ProfileDTO>> UpdateProfileAsync(Guid userId, UpdateProfileDTO dto);
-        Task<ApiResponse> LogoutAsync();
+        Task<ApiResponse> LogoutAsync(TokenRequestDTO tokenRequest);
+        Task<ApiResponse<LoginResponseDTO>> RefreshTokenAsync(TokenRequestDTO tokenRequest);
     }
 }

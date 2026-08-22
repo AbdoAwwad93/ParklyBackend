@@ -17,5 +17,7 @@ namespace Parkly_Backend.Models.DTOs
         public string Email { get; set; }
         /// <summary>The authenticated user's role.</summary>
         public UserRole Role { get; set; }
+        /// <summary>The refresh token used to get a new access token.</summary>
+        public string RefreshToken { get; set; } = string.Empty;
     }
 }

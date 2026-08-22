@@ -17,5 +17,6 @@ namespace Parkly_Backend.Models
         public ParkingOwner? ParkingOwner { get; set; }
         public List<Reservation> Reservations { get; set; } = new List<Reservation>();
         public List<Dispute> Disputes { get; set; } = new List<Dispute>();
+        public List<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }
 }

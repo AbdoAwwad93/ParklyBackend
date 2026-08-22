@@ -31,15 +31,16 @@ namespace Parkly_Backend.Services.Implemention
             _emailService = emailService;
             _unitOfWork = unitOfWork;
         }
-        public string GenerateJwtToken(AppUser user)
+        public (string Token, string Jti) GenerateJwtToken(AppUser user)
         {
+            var jti = Guid.NewGuid().ToString();
             var claims = new List<Claim>()
             {
               new Claim(ClaimTypes.Name,user.UserName),
               new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
               new Claim(ClaimTypes.Email,user.Email),
               new Claim(ClaimTypes.Role, user.Role.ToString()),
-              new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString())
+              new Claim(JwtRegisteredClaimNames.Jti, jti)
             };
 
             //SigningCredentials
@@ -50,12 +51,26 @@ namespace Parkly_Backend.Services.Implemention
                 claims: claims,
                 issuer: Environment.GetEnvironmentVariable("Issuer"),
                 audience: Environment.GetEnvironmentVariable("Audience"),
-                expires: DateTime.Now.AddHours(1),
+                expires: DateTime.UtcNow.AddMinutes(Convert.ToInt32(Environment.GetEnvironmentVariable("JwtExpiresInMinutes"))),
                 signingCredentials: sc
                 
                 );
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return (new JwtSecurityTokenHandler().WriteToken(token), jti);
 
+        }
+
+        private RefreshToken GenerateRefreshTokenString(Guid userId, string jti)
+        {
+            return new RefreshToken
+            {
+                Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+                JwtId = jti,
+                IsUsed = false,
+                IsRevoked = false,
+                AddedDate = DateTime.UtcNow,
+                ExpiryDate = DateTime.UtcNow.AddMonths(Convert.ToInt32(Environment.GetEnvironmentVariable("RefreshTokenExpiresInMonths"))),
+                UserId = userId
+            };
         }
 
         public async Task<ApiResponse> Register(RegisterDTO user)
@@ -131,7 +146,14 @@ namespace Parkly_Backend.Services.Implemention
             }
 
             var data = _mapper.Map<LoginResponseDTO>(user);
-            data.Token = GenerateJwtToken(user);
+            var (jwtToken, jti) = GenerateJwtToken(user);
+            var refreshToken = GenerateRefreshTokenString(user.Id, jti);
+
+            await _unitOfWork.Repository<RefreshToken>().AddAsync(refreshToken);
+            await _unitOfWork.SaveChangesAsync();
+
+            data.Token = jwtToken;
+            data.RefreshToken = refreshToken.Token;
 
             return ApiResponse<LoginResponseDTO>.Success("Login Successful", data);
 
@@ -252,11 +274,108 @@ namespace Parkly_Backend.Services.Implemention
             return ApiResponse<ProfileDTO>.Success("Profile updated successfully.", profile);
         }
 
-        public async Task<ApiResponse> LogoutAsync()
+        public async Task<ApiResponse> LogoutAsync(TokenRequestDTO tokenRequest)
         {
-            // Stateless JWT logout is primarily handled client-side by dropping the token.
-            // A true backend logout would require a token blocklist.
-            return await Task.FromResult(ApiResponse.Success("Logged out successfully."));
+            var refreshTokenRepo = _unitOfWork.Repository<RefreshToken>();
+            var storedToken = await refreshTokenRepo.Query()
+                .FirstOrDefaultAsync(rt => rt.Token == tokenRequest.RefreshToken);
+
+            if (storedToken == null)
+            {
+                return ApiResponse.Failure("Refresh token not found.");
+            }
+
+            storedToken.IsRevoked = true;
+            refreshTokenRepo.Update(storedToken);
+            await _unitOfWork.SaveChangesAsync();
+
+            return ApiResponse.Success("Logged out successfully.");
+        }
+
+        private ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
+        {
+            var SecretKey = Environment.GetEnvironmentVariable("SecretKey");
+            var Key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SecretKey));
+            var tokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateAudience = false, 
+                ValidateIssuer = false,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = Key,
+                ValidateLifetime = false // Here we are saying that we don't care about the token's expiration date
+            };
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            try
+            {
+                var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out SecurityToken securityToken);
+                if (securityToken is not JwtSecurityToken jwtSecurityToken || 
+                    !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    return null;
+                }
+                return principal;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<ApiResponse<LoginResponseDTO>> RefreshTokenAsync(TokenRequestDTO tokenRequest)
+        {
+            var principal = GetPrincipalFromExpiredToken(tokenRequest.Token);
+            if (principal == null)
+            {
+                return ApiResponse<LoginResponseDTO>.Failure("Invalid access token.");
+            }
+
+            var jti = principal.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+            var userIdClaim = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(jti) || string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
+            {
+                return ApiResponse<LoginResponseDTO>.Failure("Invalid token claims.");
+            }
+
+            var refreshTokenRepo = _unitOfWork.Repository<RefreshToken>();
+            var storedToken = await refreshTokenRepo.Query()
+                .FirstOrDefaultAsync(rt => rt.Token == tokenRequest.RefreshToken);
+
+            if (storedToken == null)
+                return ApiResponse<LoginResponseDTO>.Failure("Refresh token does not exist.");
+
+            if (storedToken.IsUsed)
+                return ApiResponse<LoginResponseDTO>.Failure("Refresh token has been used.");
+
+            if (storedToken.IsRevoked)
+                return ApiResponse<LoginResponseDTO>.Failure("Refresh token has been revoked.");
+
+            if (storedToken.JwtId != jti)
+                return ApiResponse<LoginResponseDTO>.Failure("Refresh token does not match the access token.");
+
+            if (storedToken.ExpiryDate < DateTime.UtcNow)
+                return ApiResponse<LoginResponseDTO>.Failure("Refresh token has expired.");
+
+            // Mark as used
+            storedToken.IsUsed = true;
+            refreshTokenRepo.Update(storedToken);
+            await _unitOfWork.SaveChangesAsync();
+
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+                return ApiResponse<LoginResponseDTO>.Failure("User not found.");
+
+            var data = _mapper.Map<LoginResponseDTO>(user);
+            var (newJwtToken, newJti) = GenerateJwtToken(user);
+            var newRefreshToken = GenerateRefreshTokenString(user.Id, newJti);
+
+            await refreshTokenRepo.AddAsync(newRefreshToken);
+            await _unitOfWork.SaveChangesAsync();
+
+            data.Token = newJwtToken;
+            data.RefreshToken = newRefreshToken.Token;
+
+            return ApiResponse<LoginResponseDTO>.Success("Token refreshed successfully.", data);
         }
     }
 }
