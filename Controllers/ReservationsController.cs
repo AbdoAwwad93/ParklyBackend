@@ -100,6 +100,34 @@ namespace Parkly_Backend.Controllers
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 
+        /// <summary>Retrieves all reservations for the authenticated user.</summary>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing a list of reservations.</returns>
+        /// <response code="200">Reservations retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        [HttpGet("my-reservations")]
+        [ProducesResponseType(typeof(ApiResponse<List<ReservationResponseDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetMyReservations()
+        {
+            var userId = GetUserId();
+            var result = await _service.GetUserReservationsAsync(userId);
+            return Ok(result);
+        }
+
+        /// <summary>Retrieves all active reservations for the authenticated user (not completed or cancelled).</summary>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing a list of active reservations.</returns>
+        /// <response code="200">Active reservations retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        [HttpGet("my-reservations/active")]
+        [ProducesResponseType(typeof(ApiResponse<List<ReservationResponseDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetMyActiveReservations()
+        {
+            var userId = GetUserId();
+            var result = await _service.GetActiveUserReservationsAsync(userId);
+            return Ok(result);
+        }
+
         private Guid GetUserId()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

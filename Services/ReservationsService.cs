@@ -204,5 +204,27 @@ namespace Parkly_Backend.Services
 
             return _mapper.Map<ReservationResponseDTO>(reservation);
         }
+
+        public async Task<ApiResponse<List<ReservationResponseDTO>>> GetUserReservationsAsync(Guid userId)
+        {
+            var reservations = await _unitOfWork.Repository<Reservation>().Query()
+                .Include(r => r.ParkingSpace)
+                .Where(r => r.UserId == userId)
+                .ToListAsync();
+
+            var response = _mapper.Map<List<ReservationResponseDTO>>(reservations);
+            return ApiResponse<List<ReservationResponseDTO>>.Success("Reservations retrieved successfully.", response);
+        }
+
+        public async Task<ApiResponse<List<ReservationResponseDTO>>> GetActiveUserReservationsAsync(Guid userId)
+        {
+            var reservations = await _unitOfWork.Repository<Reservation>().Query()
+                .Include(r => r.ParkingSpace)
+                .Where(r => r.UserId == userId && r.Status != ReservationStatus.Completed && r.Status != ReservationStatus.Cancelled)
+                .ToListAsync();
+
+            var response = _mapper.Map<List<ReservationResponseDTO>>(reservations);
+            return ApiResponse<List<ReservationResponseDTO>>.Success("Active reservations retrieved successfully.", response);
+        }
     }
 }
