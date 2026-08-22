@@ -8,6 +8,7 @@ using Parkly_Backend.Services.Interfaces;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using System;
+using Parkly_Backend.Common.Extensions;
 
 namespace Parkly_Backend.Controllers
 {
@@ -144,13 +145,13 @@ namespace Parkly_Backend.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetProfile()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out Guid parsedId))
+            var userId = User.GetUserId();
+            if (!userId.HasValue)
             {
                 return Unauthorized();
             }
 
-            var result = await _service.GetProfileAsync(parsedId);
+            var result = await _service.GetProfileAsync(userId.Value);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 
@@ -172,13 +173,13 @@ namespace Parkly_Backend.Controllers
                 return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
             }
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out Guid parsedId))
+            var userId = User.GetUserId();
+            if (!userId.HasValue)
             {
                 return Unauthorized();
             }
 
-            var result = await _service.UpdateProfileAsync(parsedId, updateProfile);
+            var result = await _service.UpdateProfileAsync(userId.Value, updateProfile);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 

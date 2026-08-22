@@ -1,10 +1,11 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models.DTOs;
 using Parkly_Backend.Models.Response;
 using System.Security.Claims;
+using Parkly_Backend.Common.Extensions;
 
 namespace Parkly_Backend.Controllers
 {
@@ -105,7 +106,7 @@ namespace Parkly_Backend.Controllers
                 return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
             }
 
-            var ownerId = GetUserId();
+            var ownerId = User.GetRequiredUserId();
             var result = await _service.CreateAsync(ownerId, dto);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
@@ -133,7 +134,7 @@ namespace Parkly_Backend.Controllers
                 return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
             }
 
-            var ownerId = GetUserId();
+            var ownerId = User.GetRequiredUserId();
             var result = await _service.UpdateAsync(ownerId, id, dto);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
@@ -155,15 +156,9 @@ namespace Parkly_Backend.Controllers
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Delete(Guid id)
         {
-            var ownerId = GetUserId();
+            var ownerId = User.GetRequiredUserId();
             var result = await _service.DeleteAsync(ownerId, id);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
-        }
-
-        private Guid GetUserId()
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return Guid.Parse(userId);
         }
     }
 }

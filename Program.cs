@@ -62,7 +62,8 @@ namespace Parkly_Backend
                     {
                         ValidateIssuer = true,
                         ValidateAudience = false,
-                        ValidateLifetime = false,
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.FromMinutes(1),
                         ValidateIssuerSigningKey = true,
                         ValidIssuer = Environment.GetEnvironmentVariable("Issuer"),
                         ValidAudience = Environment.GetEnvironmentVariable("Audience"),
@@ -82,7 +83,7 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IOccupancyService, OccupancyService>();
             builder.Services.AddScoped<IAccessService, AccessService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
-            
+
             builder.Services.AddSignalR();
 
             builder.Services.AddEndpointsApiExplorer();

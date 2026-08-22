@@ -4,6 +4,7 @@ using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models.DTOs;
 using Parkly_Backend.Models.Response;
 using System.Security.Claims;
+using Parkly_Backend.Common.Extensions;
 
 namespace Parkly_Backend.Controllers
 {
@@ -37,7 +38,7 @@ namespace Parkly_Backend.Controllers
                 return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
             }
 
-            var userId = GetUserId();
+            var userId = User.GetRequiredUserId();
             var result = await _service.CreateAsync(userId, dto);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
@@ -61,7 +62,7 @@ namespace Parkly_Backend.Controllers
                 return BadRequest(response);
             }
 
-            var userId = GetUserId();
+            var userId = User.GetRequiredUserId();
             var result = await _service.UpdateAsync(userId, id, dto);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
@@ -78,7 +79,7 @@ namespace Parkly_Backend.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Cancel(Guid id)
         {
-            var userId = GetUserId();
+            var userId = User.GetRequiredUserId();
             var result = await _service.CancelAsync(userId, id);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
@@ -95,7 +96,7 @@ namespace Parkly_Backend.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetQrCode(Guid id)
         {
-            var userId = GetUserId();
+            var userId = User.GetRequiredUserId();
             var result = await _service.GetQrCodeAsync(userId, id);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
@@ -109,7 +110,7 @@ namespace Parkly_Backend.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetMyReservations()
         {
-            var userId = GetUserId();
+            var userId = User.GetRequiredUserId();
             var result = await _service.GetUserReservationsAsync(userId);
             return Ok(result);
         }
@@ -123,15 +124,9 @@ namespace Parkly_Backend.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetMyActiveReservations()
         {
-            var userId = GetUserId();
+            var userId = User.GetRequiredUserId();
             var result = await _service.GetActiveUserReservationsAsync(userId);
             return Ok(result);
-        }
-
-        private Guid GetUserId()
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return Guid.Parse(userId);
         }
     }
 }
