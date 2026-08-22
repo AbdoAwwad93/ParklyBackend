@@ -48,6 +48,21 @@ namespace Parkly_Backend.Services
                 .Where(s => s.ParkingId == parkingId && s.IsActive)
                 .ToListAsync();
 
+            if (spaces.Count == 0)
+            {
+                return new List<ParkingSpace>();
+            }
+
+            var spaceIds = spaces.Select(s => s.SpaceId).ToList();
+            var reservedSpaceIds = await _unitOfWork.Repository<Reservation>().Query()
+                .Where(r => spaceIds.Contains(r.SpaceId) &&
+                            r.Status != ReservationStatus.Cancelled &&
+                            r.ArrivalTime < departure &&
+                            r.DepartureTime > arrival)
+                .Select(r => r.SpaceId)
+                .Distinct()
+                .ToListAsync();
+
             var available = new List<ParkingSpace>();
             foreach (var space in spaces)
             {
@@ -61,7 +76,7 @@ namespace Parkly_Backend.Services
                     continue;
                 }
 
-                if (await HasOverlappingReservationAsync(space.SpaceId, arrival, departure, null))
+                if (reservedSpaceIds.Contains(space.SpaceId))
                 {
                     continue;
                 }

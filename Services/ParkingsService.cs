@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
@@ -98,31 +98,32 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<List<SearchParkingDTO>>> SearchAsync(SearchParkingQuery query)
         {
-            var parkings = await _unitOfWork.Repository<Parking>().Query()
+            var queryable = _unitOfWork.Repository<Parking>().Query()
                 .Include(p => p.ParkingSpaces)
-                .ToListAsync();
-
-            IEnumerable<Parking> filtered = parkings;
+                .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(query.Keyword))
             {
-                var keyword = query.Keyword.Trim().ToLowerInvariant();
-                filtered = filtered.Where(p =>
-                    p.Name.ToLowerInvariant().Contains(keyword)
-                    || p.Address.ToLowerInvariant().Contains(keyword));
+                var keyword = query.Keyword.Trim().ToLower();
+                queryable = queryable.Where(p =>
+                    p.Name.ToLower().Contains(keyword)
+                    || p.Address.ToLower().Contains(keyword));
             }
 
             if (query.VehicleSize.HasValue)
             {
-                filtered = filtered.Where(p =>
+                queryable = queryable.Where(p =>
                     p.ParkingSpaces.Any(s => s.IsActive && s.VehicleSize == query.VehicleSize));
             }
 
             if (query.MaxRate.HasValue)
             {
-                filtered = filtered.Where(p =>
+                queryable = queryable.Where(p =>
                     p.ParkingSpaces.Any(s => s.IsActive && s.BaseHourlyRate <= query.MaxRate));
             }
+
+            var parkings = await queryable.ToListAsync();
+            IEnumerable<Parking> filtered = parkings;
 
             if (query.Latitude.HasValue && query.Longitude.HasValue && query.RadiusKm.HasValue)
             {
