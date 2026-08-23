@@ -71,6 +71,46 @@ namespace Parkly_Backend.Controllers
 
             return Ok(result);
         }
+        /// <summary>Verifies the user's email address using an OTP.</summary>
+        /// <param name="verifyEmailDto">The email and the 6-digit OTP.</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating the result.</returns>
+        [HttpPost("verify-email")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> VerifyEmail(VerifyEmailDTO verifyEmailDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+            var result = await _service.VerifyEmailAsync(verifyEmailDto);
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
+        /// <summary>Resends the verification email OTP.</summary>
+        /// <param name="resendDto">The email address.</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating the result.</returns>
+        [HttpPost("resend-verification-email")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ResendVerificationEmail(ResendVerificationDTO resendDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+            var result = await _service.ResendVerificationEmailAsync(resendDto);
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
         /// <summary>Authenticates a user and returns a JWT token.</summary>
         /// <param name="login">The login credentials.</param>
         /// <returns>An <see cref="ApiResponse{T}"/> whose <c>Data</c> is the JWT token on success.</returns>

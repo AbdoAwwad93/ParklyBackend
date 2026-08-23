@@ -22,6 +22,7 @@ namespace Parkly_Backend.Data
         public DbSet<AccessLog> AccessLogs { get; set; }
         public DbSet<Dispute> Disputes { get; set; }
         public DbSet<PasswordResetOtp> PasswordResetOtps { get; set; }
+        public DbSet<EmailVerificationOtp> EmailVerificationOtps { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)

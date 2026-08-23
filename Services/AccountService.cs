@@ -98,8 +98,10 @@ namespace Parkly_Backend.Services
             
             }
             
+            await SendVerificationEmailAsync(newUser);
+
             _logger.LogInformation("Account created successfully for email {Email}", user.Email);
-            return ApiResponse.Success("Account is created successfully!");
+            return ApiResponse.Success("Account is created successfully! Please verify your email.");
         }
 
         public async Task<ApiResponse> RegisterOwner(OwnerRegisterDTO newOwner)
@@ -134,8 +136,10 @@ namespace Parkly_Backend.Services
                 await _unitOfWork.Repository<ParkingOwner>().AddAsync(parkingOwner);
                 await _unitOfWork.SaveChangesAsync();
 
+                await SendVerificationEmailAsync(newUser);
+
                 await _unitOfWork.CommitTransactionAsync();
-                return ApiResponse.Success("Parking owner account created successfully!");
+                return ApiResponse.Success("Parking owner account created successfully! Please verify your email.");
             }
             catch
             {
@@ -156,6 +160,13 @@ namespace Parkly_Backend.Services
                 return ApiResponse<LoginResponseDTO>.Failure("Invalid Email or Password");
             }
 
+            var isEmailConfirmed = await _userManager.IsEmailConfirmedAsync(user);
+            if (!isEmailConfirmed)
+            {
+                _logger.LogWarning("Failed login attempt for email {Email}: Email not verified.", login.Email);
+                return ApiResponse<LoginResponseDTO>.Failure("Please verify your email address to log in.");
+            }
+
             var data = _mapper.Map<LoginResponseDTO>(user);
             var (jwtToken, jti) = GenerateJwtToken(user);
             var refreshToken = GenerateRefreshTokenString(user.Id, jti);
@@ -169,6 +180,81 @@ namespace Parkly_Backend.Services
             _logger.LogInformation("User {Email} logged in successfully.", login.Email);
             return ApiResponse<LoginResponseDTO>.Success("Login Successful", data);
 
+        }
+
+        private async Task SendVerificationEmailAsync(AppUser user)
+        {
+            var repo = _unitOfWork.Repository<EmailVerificationOtp>();
+            
+            // Invalidate any existing OTPs
+            var activeOtps = await repo.Query()
+                .Where(o => o.UserId == user.Id && !o.IsUsed && o.ExpiresAt > DateTime.UtcNow)
+                .ToListAsync();
+            foreach (var otp in activeOtps)
+            {
+                repo.Delete(otp);
+            }
+
+            var code = _random.Next(100000, 999999).ToString();
+            var entity = new EmailVerificationOtp
+            {
+                UserId = user.Id,
+                CodeHash = HashOtp(code),
+                ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+                IsUsed = false
+            };
+            await repo.AddAsync(entity);
+            await _unitOfWork.SaveChangesAsync();
+
+            var body = $"<p>Your Parkly email verification code is: <strong>{code}</strong></p><p>This code is valid for 15 minutes.</p>";
+            await _emailService.SendEmailAsync(user.Email, "Parkly - Verify your email address", body);
+        }
+
+        public async Task<ApiResponse> VerifyEmailAsync(VerifyEmailDTO verifyEmailDto)
+        {
+            var user = await _userManager.FindByEmailAsync(verifyEmailDto.Email);
+            if (user == null)
+            {
+                return ApiResponse.Failure("Invalid OTP or the code has expired.");
+            }
+
+            var repo = _unitOfWork.Repository<EmailVerificationOtp>();
+            var otp = await repo.Query()
+                .Where(o => o.UserId == user.Id && !o.IsUsed && o.ExpiresAt > DateTime.UtcNow)
+                .OrderByDescending(o => o.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (otp == null || !VerifyOtp(verifyEmailDto.Otp, otp.CodeHash))
+            {
+                return ApiResponse.Failure("Invalid OTP or the code has expired.");
+            }
+
+            otp.IsUsed = true;
+            repo.Update(otp);
+            
+            user.EmailConfirmed = true;
+            await _userManager.UpdateAsync(user);
+            await _unitOfWork.SaveChangesAsync();
+
+            return ApiResponse.Success("Email verified successfully.");
+        }
+
+        public async Task<ApiResponse> ResendVerificationEmailAsync(ResendVerificationDTO resendVerificationDto)
+        {
+            var user = await _userManager.FindByEmailAsync(resendVerificationDto.Email);
+            if (user == null)
+            {
+                return ApiResponse.Success("If the email is registered, a new verification OTP has been sent.");
+            }
+
+            if (await _userManager.IsEmailConfirmedAsync(user))
+            {
+                return ApiResponse.Failure("Email is already verified.");
+            }
+
+            await SendVerificationEmailAsync(user);
+
+            return ApiResponse.Success("If the email is registered, a new verification OTP has been sent.");
         }
 
         public async Task<ApiResponse> ForgotPasswordAsync(ForgotPasswordDTO forgotPassword)
