@@ -12,6 +12,7 @@ namespace Parkly_Backend.Interfaces
         public Task<ApiResponse> RegisterOwner(OwnerRegisterDTO newOwner);
         public Task<ApiResponse<LoginResponseDTO>> LogIn(LoginDTO login);
         public Task<ApiResponse> ForgotPasswordAsync(ForgotPasswordDTO forgotPassword);
+        public Task<ApiResponse<string>> VerifyResetOtpAsync(VerifyResetOtpDTO verifyResetOtpDto);
         public Task<ApiResponse> ResetPasswordAsync(ResetPasswordDTO resetPassword);
         public Task<ApiResponse> VerifyEmailAsync(VerifyEmailDTO verifyEmailDto);
         public Task<ApiResponse> ResendVerificationEmailAsync(ResendVerificationDTO resendVerificationDto);

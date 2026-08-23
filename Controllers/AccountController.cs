@@ -30,6 +30,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="200">Registration succeeded.</response>
         /// <response code="400">Validation failed or the email is already registered.</response>
         [HttpPost("register")]
+        [Tags("1. Registration & Verification")]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Register(RegisterDTO user)
@@ -54,6 +55,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="200">Registration succeeded.</response>
         /// <response code="400">Validation failed or the email is already registered.</response>
         [HttpPost("register-owner")]
+        [Tags("1. Registration & Verification")]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> RegisterOwner(OwnerRegisterDTO user)
@@ -75,6 +77,7 @@ namespace Parkly_Backend.Controllers
         /// <param name="verifyEmailDto">The email and the 6-digit OTP.</param>
         /// <returns>An <see cref="ApiResponse"/> indicating the result.</returns>
         [HttpPost("verify-email")]
+        [Tags("1. Registration & Verification")]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> VerifyEmail(VerifyEmailDTO verifyEmailDto)
@@ -95,6 +98,7 @@ namespace Parkly_Backend.Controllers
         /// <param name="resendDto">The email address.</param>
         /// <returns>An <see cref="ApiResponse"/> indicating the result.</returns>
         [HttpPost("resend-verification-email")]
+        [Tags("Registration & Verification")]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ResendVerificationEmail(ResendVerificationDTO resendDto)
@@ -118,6 +122,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="400">Validation failed.</response>
         /// <response code="401">Invalid credentials.</response>
         [HttpPost("login")]
+        [Tags("Authentication")]
         [ProducesResponseType(typeof(ApiResponse<LoginResponseDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<LoginResponseDTO>), StatusCodes.Status401Unauthorized)]
@@ -141,6 +146,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="200">The request was processed (generic response, enumeration-safe).</response>
         /// <response code="400">Validation failed.</response>
         [HttpPost("forgot-password")]
+        [Tags("Password Management")]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ForgotPassword(ForgotPasswordDTO forgotPassword)
@@ -153,12 +159,36 @@ namespace Parkly_Backend.Controllers
             return Ok(result);
         }
 
-        /// <summary>Resets the user's password using the OTP received by email.</summary>
-        /// <param name="resetPassword">The email, OTP and new password.</param>
+        /// <summary>Verifies the OTP sent for password reset and returns a reset token.</summary>
+        /// <param name="verifyOtp">The email and OTP.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the reset token on success.</returns>
+        /// <response code="200">OTP verified successfully; a reset token is returned.</response>
+        /// <response code="400">Validation failed or the OTP is invalid/expired.</response>
+        [HttpPost("verify-reset-otp")]
+        [Tags("Password Management")]
+        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> VerifyResetOtp(VerifyResetOtpDTO verifyOtp)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+            var result = await _service.VerifyResetOtpAsync(verifyOtp);
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
+        /// <summary>Resets the user's password using the secure reset token.</summary>
+        /// <param name="resetPassword">The email, ResetToken and new password.</param>
         /// <returns>An <see cref="ApiResponse"/> indicating the result.</returns>
         /// <response code="200">Password reset succeeded.</response>
-        /// <response code="400">Validation failed or the OTP is invalid/expired.</response>
+        /// <response code="400">Validation failed or the token is invalid/expired.</response>
         [HttpPost("reset-password")]
+        [Tags("Password Management")]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ResetPassword(ResetPasswordDTO resetPassword)
@@ -180,6 +210,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="200">Profile retrieved successfully.</response>
         /// <response code="401">Missing or invalid JWT token.</response>
         [HttpGet("profile")]
+        [Tags("User Profile")]
         [Authorize]
         [ProducesResponseType(typeof(ApiResponse<ProfileDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -202,6 +233,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="400">Validation failed or profile update failed.</response>
         /// <response code="401">Missing or invalid JWT token.</response>
         [HttpPut("profile")]
+        [Tags("User Profile")]
         [Authorize]
         [ProducesResponseType(typeof(ApiResponse<ProfileDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
@@ -228,6 +260,7 @@ namespace Parkly_Backend.Controllers
         /// <returns>An <see cref="ApiResponse"/> indicating success.</returns>
         /// <response code="200">Logout succeeded.</response>
         [HttpPost("logout")]
+        [Tags("Authentication")]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Logout([FromBody] TokenRequestDTO tokenRequest)
         {
@@ -241,6 +274,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="200">Tokens refreshed successfully.</response>
         /// <response code="400">Tokens are invalid or expired.</response>
         [HttpPost("refresh-token")]
+        [Tags("Authentication")]
         [ProducesResponseType(typeof(ApiResponse<LoginResponseDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<LoginResponseDTO>), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> RefreshToken([FromBody] TokenRequestDTO tokenRequest)

@@ -9,10 +9,9 @@ namespace Parkly_Backend.Models.DTOs
         [Required(ErrorMessage = "Email is required!")]
         [EmailAddress(ErrorMessage = "Email is not valid!")]
         public string Email { get; set; }
-        /// <summary>The one-time password received by email.</summary>
-        [Required(ErrorMessage = "OTP is required!")]
-        [StringLength(6, MinimumLength = 6, ErrorMessage = "OTP must be 6 digits.")]
-        public string Otp { get; set; }
+        /// <summary>The secure reset token received after verifying the OTP.</summary>
+        [Required(ErrorMessage = "ResetToken is required!")]
+        public string ResetToken { get; set; }
         /// <summary>The new password.</summary>
         [Required(ErrorMessage = "Password is required.")]
         [DataType(DataType.Password)]

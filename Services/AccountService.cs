@@ -291,12 +291,12 @@ namespace Parkly_Backend.Services
             return ApiResponse.Success("If the email is registered, an OTP has been sent to reset your password.");
         }
 
-        public async Task<ApiResponse> ResetPasswordAsync(ResetPasswordDTO resetPassword)
+        public async Task<ApiResponse<string>> VerifyResetOtpAsync(VerifyResetOtpDTO verifyResetOtpDto)
         {
-            var user = await _userManager.FindByEmailAsync(resetPassword.Email);
+            var user = await _userManager.FindByEmailAsync(verifyResetOtpDto.Email);
             if (user == null)
             {
-                return ApiResponse.Failure("Invalid OTP or the code has expired.");
+                return ApiResponse<string>.Failure("Invalid OTP or the code has expired.");
             }
 
             var repo = _unitOfWork.Repository<PasswordResetOtp>();
@@ -304,22 +304,34 @@ namespace Parkly_Backend.Services
                 .Where(o => o.UserId == user.Id && !o.IsUsed && o.ExpiresAt > DateTime.UtcNow)
                 .OrderByDescending(o => o.CreatedAt)
                 .FirstOrDefaultAsync();
-            if (otp == null || !VerifyOtp(resetPassword.Otp, otp.CodeHash))
-            {
-                return ApiResponse.Failure("Invalid OTP or the code has expired.");
-            }
 
-            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-            var result = await _userManager.ResetPasswordAsync(user, token, resetPassword.NewPassword);
-            if (!result.Succeeded)
+            if (otp == null || !VerifyOtp(verifyResetOtpDto.Otp, otp.CodeHash))
             {
-                var errors = result.Errors.Select(e => e.Description).ToList();
-                return ApiResponse.Failure("Password reset failed", errors);
+                return ApiResponse<string>.Failure("Invalid OTP or the code has expired.");
             }
 
             otp.IsUsed = true;
             repo.Update(otp);
             await _unitOfWork.SaveChangesAsync();
+
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            return ApiResponse<string>.Success("OTP verified successfully.", token);
+        }
+
+        public async Task<ApiResponse> ResetPasswordAsync(ResetPasswordDTO resetPassword)
+        {
+            var user = await _userManager.FindByEmailAsync(resetPassword.Email);
+            if (user == null)
+            {
+                return ApiResponse.Failure("Invalid request.");
+            }
+
+            var result = await _userManager.ResetPasswordAsync(user, resetPassword.ResetToken, resetPassword.NewPassword);
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => e.Description).ToList();
+                return ApiResponse.Failure("Password reset failed", errors);
+            }
 
             return ApiResponse.Success("Your password has been reset successfully.");
         }
