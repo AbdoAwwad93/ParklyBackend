@@ -45,12 +45,12 @@ namespace Parkly_Backend
                 options.RefreshTokenExpiresInMonths = int.TryParse(Environment.GetEnvironmentVariable("RefreshTokenExpiresInMonths"), out var r) ? r : 6;
             });
 
-            builder.Services.Configure<SmtpOptions>(options =>
+            builder.Services.Configure<GmailOptions>(options =>
             {
-                options.Host = Environment.GetEnvironmentVariable("SmtpHost") ?? "";
-                options.Port = int.TryParse(Environment.GetEnvironmentVariable("SmtpPort"), out var p) ? p : 587;
-                options.Email = Environment.GetEnvironmentVariable("Email") ?? "";
-                options.Password = Environment.GetEnvironmentVariable("EmailPassword") ?? "";
+                options.ClientId = Environment.GetEnvironmentVariable("GmailClientId") ?? string.Empty;
+                options.ClientSecret = Environment.GetEnvironmentVariable("GmailClientSecret") ?? string.Empty;
+                options.RefreshToken = Environment.GetEnvironmentVariable("GmailRefreshToken") ?? string.Empty;
+                options.SenderEmail = Environment.GetEnvironmentVariable("GmailSenderEmail") ?? string.Empty;
             });
 
             // Add services to the container.
