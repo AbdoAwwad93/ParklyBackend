@@ -1,5 +1,4 @@
 using AutoMapper;
-using Microsoft.EntityFrameworkCore;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
@@ -42,7 +41,7 @@ namespace Parkly_Backend.Services
                 return ApiResponse<ReservationResponseDTO>.Failure("Departure time must be after arrival time.");
             }
 
-            var space = await _unitOfWork.Repository<ParkingSpace>().GetByIdAsync(dto.SpaceId);
+            var space = await _unitOfWork.ParkingSpaces.GetByIdAsync(dto.SpaceId);
             if (space == null)
             {
                 return ApiResponse<ReservationResponseDTO>.Failure("Parking space not found.");
@@ -73,7 +72,7 @@ namespace Parkly_Backend.Services
                     Status = ReservationStatus.Confirmed
                 };
 
-                await _unitOfWork.Repository<Reservation>().AddAsync(reservation);
+                await _unitOfWork.Reservations.AddAsync(reservation);
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
 
@@ -97,7 +96,7 @@ namespace Parkly_Backend.Services
                 return ApiResponse<ReservationResponseDTO>.Failure("Departure time must be after arrival time.");
             }
 
-            var reservation = await _unitOfWork.Repository<Reservation>().GetByIdAsync(reservationId);
+            var reservation = await _unitOfWork.Reservations.GetByIdAsync(reservationId);
             if (reservation == null)
             {
                 return ApiResponse<ReservationResponseDTO>.Failure("Reservation not found.");
@@ -142,7 +141,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse> CancelAsync(Guid userId, Guid reservationId)
         {
-            var reservation = await _unitOfWork.Repository<Reservation>().GetByIdAsync(reservationId);
+            var reservation = await _unitOfWork.Reservations.GetByIdAsync(reservationId);
             if (reservation == null)
             {
                 return ApiResponse.Failure("Reservation not found.");
@@ -177,7 +176,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<string>> GetQrCodeAsync(Guid userId, Guid reservationId)
         {
-            var reservation = await _unitOfWork.Repository<Reservation>().GetByIdAsync(reservationId);
+            var reservation = await _unitOfWork.Reservations.GetByIdAsync(reservationId);
             if (reservation == null)
             {
                 return ApiResponse<string>.Failure("Reservation not found.");
@@ -215,19 +214,14 @@ namespace Parkly_Backend.Services
 
         private async Task<ReservationResponseDTO> BuildResponseAsync(Guid reservationId)
         {
-            var reservation = await _unitOfWork.Repository<Reservation>().Query()
-                .Include(r => r.ParkingSpace)
-                .FirstAsync(r => r.ReservationId == reservationId);
-
+            var reservation = await _unitOfWork.Reservations.GetReservationWithIncludesAsync(reservationId);
+            
             return _mapper.Map<ReservationResponseDTO>(reservation);
         }
 
         public async Task<ApiResponse<List<ReservationResponseDTO>>> GetUserReservationsAsync(Guid userId)
         {
-            var reservations = await _unitOfWork.Repository<Reservation>().Query()
-                .Include(r => r.ParkingSpace)
-                .Where(r => r.UserId == userId)
-                .ToListAsync();
+            var reservations = await _unitOfWork.Reservations.GetAllReservationsByUserAsync(userId);
 
             var response = _mapper.Map<List<ReservationResponseDTO>>(reservations);
             return ApiResponse<List<ReservationResponseDTO>>.Success("Reservations retrieved successfully.", response);
@@ -235,10 +229,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<List<ReservationResponseDTO>>> GetActiveUserReservationsAsync(Guid userId)
         {
-            var reservations = await _unitOfWork.Repository<Reservation>().Query()
-                .Include(r => r.ParkingSpace)
-                .Where(r => r.UserId == userId && r.Status != ReservationStatus.Completed && r.Status != ReservationStatus.Cancelled)
-                .ToListAsync();
+            var reservations = await _unitOfWork.Reservations.GetActiveReservationsByUserAsync(userId);
 
             var response = _mapper.Map<List<ReservationResponseDTO>>(reservations);
             return ApiResponse<List<ReservationResponseDTO>>.Success("Active reservations retrieved successfully.", response);

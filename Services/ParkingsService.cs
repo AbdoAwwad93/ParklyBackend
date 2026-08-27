@@ -1,5 +1,4 @@
 using AutoMapper;
-using Microsoft.EntityFrameworkCore;
 using Parkly_Backend.Common.Helpers;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
@@ -100,32 +99,28 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<List<SearchParkingDTO>>> SearchAsync(SearchParkingQuery query)
         {
-            var queryable = _unitOfWork.Repository<Parking>().Query()
-                .Include(p => p.ParkingSpaces)
-                .AsQueryable();
+            var parkings = await _unitOfWork.Parkings.GetParkingsWithSpacesAsync();
+            var filtered = parkings.AsEnumerable();
 
             if (!string.IsNullOrWhiteSpace(query.Keyword))
             {
                 var keyword = query.Keyword.Trim().ToLower();
-                queryable = queryable.Where(p =>
+                filtered = filtered.Where(p =>
                     p.Name.ToLower().Contains(keyword)
                     || p.Address.ToLower().Contains(keyword));
             }
 
             if (query.VehicleSize.HasValue)
             {
-                queryable = queryable.Where(p =>
+                filtered = filtered.Where(p =>
                     p.ParkingSpaces.Any(s => s.IsActive && s.VehicleSize == query.VehicleSize));
             }
 
             if (query.MaxRate.HasValue)
             {
-                queryable = queryable.Where(p =>
+                filtered = filtered.Where(p =>
                     p.ParkingSpaces.Any(s => s.IsActive && s.BaseHourlyRate <= query.MaxRate));
             }
-
-            var parkings = await queryable.ToListAsync();
-            IEnumerable<Parking> filtered = parkings;
 
             if (query.Latitude.HasValue && query.Longitude.HasValue && query.RadiusKm.HasValue)
             {
@@ -191,24 +186,8 @@ namespace Parkly_Backend.Services
             var radius = query.RadiusKm > 0 ? query.RadiusKm : 5.0;
             var (minLat, maxLat, minLng, maxLng) = GeoHelper.GetBoundingBox(query.Latitude, query.Longitude, radius);
 
-            var queryable = _unitOfWork.Repository<Parking>().Query()
-                .Include(p => p.ParkingSpaces)
-                .Where(p => p.Latitude >= minLat && p.Latitude <= maxLat &&
-                            p.Longitude >= minLng && p.Longitude <= maxLng);
-
-            if (query.VehicleSize.HasValue)
-            {
-                queryable = queryable.Where(p =>
-                    p.ParkingSpaces.Any(s => s.IsActive && s.VehicleSize == query.VehicleSize));
-            }
-
-            if (query.MaxRate.HasValue)
-            {
-                queryable = queryable.Where(p =>
-                    p.ParkingSpaces.Any(s => s.IsActive && s.BaseHourlyRate <= query.MaxRate));
-            }
-
-            var candidateParkings = await queryable.ToListAsync();
+            var candidateParkings = await _unitOfWork.Parkings.GetCandidateParkingsInBoundingBoxAsync(
+            minLat,maxLat,minLng,maxLng,query.VehicleSize?.ToString(), query.MaxRate);
 
             var inRangeParkings = new List<(Parking Parking, double Distance, bool IsOpenNow)>();
             foreach (var parking in candidateParkings)

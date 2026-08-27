@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Parkly_Backend.Interfaces.Repositories;
 
 namespace Parkly_Backend.Data.Repositories
 {
@@ -9,10 +9,22 @@ namespace Parkly_Backend.Data.Repositories
         private readonly Dictionary<Type, object> _repositories = new();
         private IDbContextTransaction? _transaction;
 
+        private IParkingsRepository? _parkingsRepository;
+        private IParkingSpacesRepository? _parkingSpacesRepository;
+        private IReservationsRepository? _reservationsRepository;
+        private ISavedPlacesRepository? _savedPlacesRepository;
+        private IReviewsRepository? _reviewsRepository;
+
         public UnitOfWork(AppDbContext context)
         {
             _context = context;
         }
+
+        public IParkingsRepository Parkings => _parkingsRepository ??= new ParkingsRepository(_context);
+        public IParkingSpacesRepository ParkingSpaces => _parkingSpacesRepository ??= new ParkingSpacesRepository(_context);
+        public IReservationsRepository Reservations => _reservationsRepository ??= new ReservationsRepository(_context);
+        public ISavedPlacesRepository SavedPlaces => _savedPlacesRepository ??= new SavedPlacesRepository(_context);
+        public IReviewsRepository Reviews => _reviewsRepository ??= new ReviewsRepository(_context);
 
         public IGenericRepository<T> Repository<T>() where T : class
         {

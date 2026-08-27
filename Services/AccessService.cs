@@ -3,7 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -59,9 +59,7 @@ namespace Parkly_Backend.Services
                     return ApiResponse.Failure("Invalid QR code payload.");
                 }
 
-                var reservation = await _unitOfWork.Repository<Reservation>().Query()
-                    .Include(r => r.ParkingSpace)
-                    .FirstOrDefaultAsync(r => r.ReservationId == reservationId);
+                var reservation = await _unitOfWork.Reservations.GetReservationWithIncludesAsync(reservationId);
 
                 if (reservation == null)
                 {

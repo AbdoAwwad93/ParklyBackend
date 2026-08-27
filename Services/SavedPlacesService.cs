@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
-using Microsoft.EntityFrameworkCore;
+
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
@@ -28,11 +28,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<List<SavedPlaceResponseDTO>>> GetUserSavedPlacesAsync(Guid userId)
         {
-            var places = await _unitOfWork.Repository<SavedPlace>().Query()
-                .Where(p => p.UserId == userId)
-                .OrderBy(p => p.PlaceType == PlaceType.Home ? 0 : 1)
-                .ThenByDescending(p => p.CreatedAt)
-                .ToListAsync();
+            var places = await _unitOfWork.SavedPlaces.GetUserSavedPlacesOrderedAsync(userId);
 
             var response = _mapper.Map<List<SavedPlaceResponseDTO>>(places);
             return ApiResponse<List<SavedPlaceResponseDTO>>.Success("Saved places retrieved successfully.", response);
@@ -40,8 +36,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<SavedPlaceResponseDTO>> GetByIdAsync(Guid userId, Guid placeId)
         {
-            var place = await _unitOfWork.Repository<SavedPlace>().Query()
-                .FirstOrDefaultAsync(p => p.PlaceId == placeId && p.UserId == userId);
+            var place = await _unitOfWork.SavedPlaces.FirstOrDefaultAsync(p => p.PlaceId == placeId && p.UserId == userId);
 
             if (place == null)
             {
@@ -63,8 +58,8 @@ namespace Parkly_Backend.Services
                 return ApiResponse<SavedPlaceResponseDTO>.Failure("Longitude must be between -180 and 180.");
             }
 
-            var count = await _unitOfWork.Repository<SavedPlace>().Query()
-                .CountAsync(p => p.UserId == userId);
+            var userPlaces = await _unitOfWork.SavedPlaces.GetUserSavedPlacesOrderedAsync(userId);
+            var count = userPlaces.Count;
 
             if (count >= MaxSavedPlacesPerUser)
             {
@@ -74,7 +69,7 @@ namespace Parkly_Backend.Services
             // Enforce unique Home and Work locations per user
             if (dto.PlaceType == PlaceType.Home || dto.PlaceType == PlaceType.Work)
             {
-                var existing = await _unitOfWork.Repository<SavedPlace>().AnyAsync(p =>
+                var existing = await _unitOfWork.SavedPlaces.AnyAsync(p =>
                     p.UserId == userId && p.PlaceType == dto.PlaceType);
 
                 if (existing)
@@ -87,7 +82,7 @@ namespace Parkly_Backend.Services
             place.UserId = userId;
             place.CreatedAt = DateTime.UtcNow;
 
-            await _unitOfWork.Repository<SavedPlace>().AddAsync(place);
+            await _unitOfWork.SavedPlaces.AddAsync(place);
             await _unitOfWork.SaveChangesAsync();
 
             var response = _mapper.Map<SavedPlaceResponseDTO>(place);
@@ -105,8 +100,7 @@ namespace Parkly_Backend.Services
                 return ApiResponse<SavedPlaceResponseDTO>.Failure("Longitude must be between -180 and 180.");
             }
 
-            var place = await _unitOfWork.Repository<SavedPlace>().Query()
-                .FirstOrDefaultAsync(p => p.PlaceId == placeId && p.UserId == userId);
+            var place = await _unitOfWork.SavedPlaces.FirstOrDefaultAsync(p => p.PlaceId == placeId && p.UserId == userId);
 
             if (place == null)
             {
@@ -116,7 +110,7 @@ namespace Parkly_Backend.Services
             // If updating to Home or Work, ensure another entry does not already occupy that type
             if ((dto.PlaceType == PlaceType.Home || dto.PlaceType == PlaceType.Work) && place.PlaceType != dto.PlaceType)
             {
-                var conflict = await _unitOfWork.Repository<SavedPlace>().AnyAsync(p =>
+                var conflict = await _unitOfWork.SavedPlaces.AnyAsync(p =>
                     p.UserId == userId && p.PlaceId != placeId && p.PlaceType == dto.PlaceType);
 
                 if (conflict)
@@ -134,15 +128,14 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse> DeleteAsync(Guid userId, Guid placeId)
         {
-            var place = await _unitOfWork.Repository<SavedPlace>().Query()
-                .FirstOrDefaultAsync(p => p.PlaceId == placeId && p.UserId == userId);
+            var place = await _unitOfWork.SavedPlaces.FirstOrDefaultAsync(p => p.PlaceId == placeId && p.UserId == userId);
 
             if (place == null)
             {
                 return ApiResponse.Failure("Saved place not found.");
             }
 
-            _unitOfWork.Repository<SavedPlace>().Delete(place);
+            _unitOfWork.SavedPlaces.Delete(place);
             await _unitOfWork.SaveChangesAsync();
 
             return ApiResponse.Success("Saved place deleted successfully.");

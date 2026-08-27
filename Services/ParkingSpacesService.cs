@@ -1,5 +1,4 @@
 using AutoMapper;
-using Microsoft.EntityFrameworkCore;
 using Parkly_Backend.Common.Helpers;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
@@ -25,9 +24,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<List<ParkingSpaceResponseDTO>>> GetAllAsync()
         {
-            var spaces = await _unitOfWork.Repository<ParkingSpace>().Query()
-                .Include(s => s.Parking)
-                .ToListAsync();
+            var spaces = await _unitOfWork.ParkingSpaces.GetAllWithParkingAsync();
 
             var response = _mapper.Map<List<ParkingSpaceResponseDTO>>(spaces);
             return ApiResponse<List<ParkingSpaceResponseDTO>>.Success("Parking spaces retrieved successfully.", response);
@@ -41,10 +38,7 @@ namespace Parkly_Backend.Services
                 return ApiResponse<List<ParkingSpaceResponseDTO>>.Failure("Parking not found.");
             }
 
-            var spaces = await _unitOfWork.Repository<ParkingSpace>().Query()
-                .Include(s => s.Parking)
-                .Where(s => s.ParkingId == parkingId)
-                .ToListAsync();
+            var spaces = await _unitOfWork.ParkingSpaces.GetByParkingIdWithParkingAsync(parkingId);
 
             var response = _mapper.Map<List<ParkingSpaceResponseDTO>>(spaces);
             return ApiResponse<List<ParkingSpaceResponseDTO>>.Success("Parking spaces retrieved successfully.", response);
@@ -52,9 +46,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<ParkingSpaceResponseDTO>> GetByIdAsync(Guid spaceId)
         {
-            var space = await _unitOfWork.Repository<ParkingSpace>().Query()
-                .Include(s => s.Parking)
-                .FirstOrDefaultAsync(s => s.SpaceId == spaceId);
+            var space = await _unitOfWork.ParkingSpaces.GetByIdWithParkingAsync(spaceId);
 
             if (space == null)
             {
@@ -108,8 +100,7 @@ namespace Parkly_Backend.Services
                 return ApiResponse.Failure("Parking space not found or you do not have permission.");
             }
 
-            var hasActiveReservations = await _unitOfWork.Repository<Reservation>()
-                .AnyAsync(r => r.SpaceId == spaceId && r.Status != ReservationStatus.Cancelled);
+            var hasActiveReservations = await _unitOfWork.ParkingSpaces.HasActiveReservationsAsync(spaceId);
             if (hasActiveReservations)
             {
                 return ApiResponse.Failure("Cannot delete this space because it has active reservations.");
@@ -123,16 +114,12 @@ namespace Parkly_Backend.Services
 
         private async Task<ParkingSpace?> GetOwnerSpaceAsync(Guid ownerId, Guid spaceId)
         {
-            return await _unitOfWork.Repository<ParkingSpace>().Query()
-                .Include(s => s.Parking)
-                .FirstOrDefaultAsync(s => s.SpaceId == spaceId && s.Parking.OwnerId == ownerId);
+            return await _unitOfWork.ParkingSpaces.GetOwnerSpaceAsync(ownerId, spaceId);
         }
 
         private async Task<ParkingSpaceResponseDTO> BuildResponseAsync(Guid spaceId)
         {
-            var space = await _unitOfWork.Repository<ParkingSpace>().Query()
-                .Include(s => s.Parking)
-                .FirstAsync(s => s.SpaceId == spaceId);
+            var space = await _unitOfWork.ParkingSpaces.GetByIdWithParkingAsync(spaceId);
 
             return _mapper.Map<ParkingSpaceResponseDTO>(space);
         }
@@ -159,24 +146,9 @@ namespace Parkly_Backend.Services
             var radius = query.RadiusKm > 0 ? query.RadiusKm : 5.0;
             var (minLat, maxLat, minLng, maxLng) = GeoHelper.GetBoundingBox(query.Latitude, query.Longitude, radius);
 
-            var spacesQuery = _unitOfWork.Repository<ParkingSpace>().Query()
-                .Include(s => s.Parking)
-                    .ThenInclude(p => p.PricingRules)
-                .Where(s => s.IsActive &&
-                            s.Parking.Latitude >= minLat && s.Parking.Latitude <= maxLat &&
-                            s.Parking.Longitude >= minLng && s.Parking.Longitude <= maxLng);
-
-            if (query.VehicleSize.HasValue)
-            {
-                spacesQuery = spacesQuery.Where(s => s.VehicleSize == query.VehicleSize.Value);
-            }
-
-            if (query.MaxRate.HasValue)
-            {
-                spacesQuery = spacesQuery.Where(s => s.BaseHourlyRate <= query.MaxRate.Value);
-            }
-
-            var candidateSpaces = await spacesQuery.ToListAsync();
+            var candidateSpaces = await _unitOfWork.ParkingSpaces.GetCandidateSpacesInBoundingBoxAsync(
+                minLat,maxLat,minLng,maxLng, 
+                query.VehicleSize?.ToString(), query.MaxRate);
             if (candidateSpaces.Count == 0)
             {
                 return ApiResponse<List<NearbyParkingSpaceDTO>>.Success("Nearby parking spaces retrieved successfully.", new List<NearbyParkingSpaceDTO>());

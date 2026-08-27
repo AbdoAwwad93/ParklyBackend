@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
-using Microsoft.EntityFrameworkCore;
+
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
@@ -26,12 +26,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<ReviewResponseDTO>> CreateAsync(Guid userId, CreateReviewDTO dto)
         {
-            var reservation = await _unitOfWork.Repository<Reservation>().Query()
-                .Include(r => r.Review)
-                .Include(r => r.User)
-                .Include(r => r.ParkingSpace)
-                .ThenInclude(ps => ps.Parking)
-                .FirstOrDefaultAsync(r => r.ReservationId == dto.ReservationId);
+            var reservation = await _unitOfWork.Reservations.GetReservationWithIncludesAsync(dto.ReservationId);
 
             if (reservation == null)
             {
@@ -61,7 +56,7 @@ namespace Parkly_Backend.Services
                 CreatedAt = DateTime.UtcNow
             };
 
-            await _unitOfWork.Repository<Review>().AddAsync(review);
+            await _unitOfWork.Reviews.AddAsync(review);
             await _unitOfWork.SaveChangesAsync();
 
             var response = _mapper.Map<ReviewResponseDTO>(review);
@@ -75,11 +70,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<ReviewResponseDTO>> UpdateAsync(Guid userId, Guid reviewId, UpdateReviewDTO dto)
         {
-            var review = await _unitOfWork.Repository<Review>().Query()
-                .Include(r => r.Reservation)
-                .ThenInclude(res => res.User)
-                .Include(r => r.Reservation.ParkingSpace.Parking)
-                .FirstOrDefaultAsync(r => r.ReviewId == reviewId);
+            var review = await _unitOfWork.Reviews.GetReviewWithIncludesAsync(reviewId);
 
             if (review == null)
             {
@@ -105,35 +96,21 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<ParkingReviewsSummaryDTO>> GetParkingReviewsAsync(Guid parkingId, int page = 1, int pageSize = 20)
         {
-            var parking = await _unitOfWork.Repository<Parking>().GetByIdAsync(parkingId);
+            var parking = await _unitOfWork.Parkings.GetByIdAsync(parkingId);
             if (parking == null)
             {
                 return ApiResponse<ParkingReviewsSummaryDTO>.Failure("Parking facility not found.");
             }
 
-            var query = _unitOfWork.Repository<Review>().Query()
-                .Include(r => r.Reservation)
-                .ThenInclude(res => res.User)
-                .Include(r => r.Reservation.ParkingSpace.Parking)
-                .Where(r => r.Reservation.ParkingSpace.ParkingId == parkingId);
-
-            int totalReviews = await query.CountAsync();
-            
-            double averageRating = 0;
-            if (totalReviews > 0)
-            {
-                averageRating = await query.AverageAsync(r => r.Rating);
-                averageRating = Math.Round(averageRating, 1);
-            }
+            int totalReviews = await _unitOfWork.Reviews.GetTotalReviewsForParkingAsync(parkingId);
+            double averageRating = await _unitOfWork.Reviews.GetAverageRatingForParkingAsync(parkingId);
+            averageRating = Math.Round(averageRating, 1);
 
             page = page > 0 ? page : 1;
             pageSize = pageSize > 0 ? pageSize : 20;
+            var skip = (page - 1) * pageSize;
 
-            var reviews = await query
-                .OrderByDescending(r => r.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
+            var reviews = await _unitOfWork.Reviews.GetReviewsForParkingAsync(parkingId, skip, pageSize);
 
             var summary = new ParkingReviewsSummaryDTO
             {
@@ -154,13 +131,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<List<ReviewResponseDTO>>> GetUserReviewsAsync(Guid userId)
         {
-            var reviews = await _unitOfWork.Repository<Review>().Query()
-                .Include(r => r.Reservation)
-                .ThenInclude(res => res.User)
-                .Include(r => r.Reservation.ParkingSpace.Parking)
-                .Where(r => r.Reservation.UserId == userId)
-                .OrderByDescending(r => r.CreatedAt)
-                .ToListAsync();
+            var reviews = await _unitOfWork.Reviews.GetUserReviewsAsync(userId);
 
             var response = reviews.Select(r => 
             {
@@ -175,9 +146,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse> DeleteAsync(Guid userId, Guid reviewId)
         {
-            var review = await _unitOfWork.Repository<Review>().Query()
-                .Include(r => r.Reservation)
-                .FirstOrDefaultAsync(r => r.ReviewId == reviewId);
+            var review = await _unitOfWork.Reviews.GetReviewWithIncludesAsync(reviewId);
 
             if (review == null)
             {
@@ -189,7 +158,7 @@ namespace Parkly_Backend.Services
                 return ApiResponse.Failure("You do not have permission to delete this review.");
             }
 
-            _unitOfWork.Repository<Review>().Delete(review);
+            _unitOfWork.Reviews.Delete(review);
             await _unitOfWork.SaveChangesAsync();
 
             return ApiResponse.Success("Review deleted successfully.");

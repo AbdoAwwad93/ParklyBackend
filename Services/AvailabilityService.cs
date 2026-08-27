@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
@@ -60,11 +59,7 @@ namespace Parkly_Backend.Services
                 return result;
             }
 
-            var spaces = await _unitOfWork.Repository<ParkingSpace>().Query()
-                .Include(s => s.Parking)
-                    .ThenInclude(p => p.PricingRules)
-                .Where(s => idList.Contains(s.ParkingId) && s.IsActive)
-                .ToListAsync();
+            var spaces = await _unitOfWork.ParkingSpaces.GetActiveSpacesWithRulesForParkingsAsync(idList);
 
             if (spaces.Count == 0)
             {
@@ -72,14 +67,8 @@ namespace Parkly_Backend.Services
             }
 
             var spaceIds = spaces.Select(s => s.SpaceId).ToList();
-            var reservedSpaceIds = await _unitOfWork.Repository<Reservation>().Query()
-                .Where(r => spaceIds.Contains(r.SpaceId) &&
-                            r.Status != ReservationStatus.Cancelled &&
-                            r.ArrivalTime < departure &&
-                            r.DepartureTime > arrival)
-                .Select(r => r.SpaceId)
-                .Distinct()
-                .ToListAsync();
+            var reservedSpaces = await _unitOfWork.Reservations.GetOverlappingReservationsForSpacesAsync(spaceIds, arrival, departure);
+            var reservedSpaceIds = reservedSpaces.Select(r => r.SpaceId).Distinct().ToList();
 
             foreach (var space in spaces)
             {
@@ -109,21 +98,13 @@ namespace Parkly_Backend.Services
 
         private async Task<bool> HasOverlappingReservationAsync(Guid spaceId, DateTime arrival, DateTime departure, Guid? excludeReservationId)
         {
-            return await _unitOfWork.Repository<Reservation>()
-                .AnyAsync(r =>
-                    r.SpaceId == spaceId &&
-                    r.Status != ReservationStatus.Cancelled &&
-                    r.ArrivalTime < departure &&
-                    r.DepartureTime > arrival &&
-                    (excludeReservationId == null || r.ReservationId != excludeReservationId));
+            var overlapping = await _unitOfWork.Reservations.GetOverlappingReservationsAsync(spaceId, arrival, departure, excludeReservationId);
+            return overlapping.Count > 0;
         }
 
         private async Task<ParkingSpace> GetSpaceWithRulesAsync(Guid spaceId)
         {
-            var space = await _unitOfWork.Repository<ParkingSpace>().Query()
-                .Include(s => s.Parking)
-                    .ThenInclude(p => p.PricingRules)
-                .FirstOrDefaultAsync(s => s.SpaceId == spaceId);
+            var space = await _unitOfWork.ParkingSpaces.GetByIdWithParkingAsync(spaceId);
 
             return space ?? throw new KeyNotFoundException("Parking space not found.");
         }

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Hubs;
 using Parkly_Backend.Interfaces;
@@ -22,11 +21,7 @@ namespace Parkly_Backend.Services
         public async Task BroadcastOccupancyUpdateAsync(Guid parkingId)
         {
             // Calculate current occupancy: count of reservations with CheckedIn status for this parking
-            var currentOccupancy = await _unitOfWork.Repository<Reservation>()
-                .Query()
-                .Include(r => r.ParkingSpace)
-                .Where(r => r.ParkingSpace.ParkingId == parkingId && r.Status == ReservationStatus.CheckedIn)
-                .CountAsync();
+            var currentOccupancy = await _unitOfWork.Reservations.GetCheckedInCountForParkingAsync(parkingId);
 
             await _hubContext.Clients.Group($"Parking_{parkingId}").SendAsync("ReceiveOccupancyUpdate", parkingId, currentOccupancy);
         }
