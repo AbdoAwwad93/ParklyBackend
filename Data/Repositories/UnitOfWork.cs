@@ -9,38 +9,37 @@ namespace Parkly_Backend.Data.Repositories
         private readonly Dictionary<Type, object> _repositories = new();
         private IDbContextTransaction? _transaction;
 
-        private IParkingsRepository? _parkingsRepository;
-        private IParkingSpacesRepository? _parkingSpacesRepository;
-        private IReservationsRepository? _reservationsRepository;
-        private ISavedPlacesRepository? _savedPlacesRepository;
-        private IReviewsRepository? _reviewsRepository;
+
+
+        public IParkingsRepository Parkings { get; private set; }
+        public IParkingSpacesRepository ParkingSpaces { get; private set; }
+        public IReservationsRepository Reservations { get; private set; }
+        public ISavedPlacesRepository SavedPlaces { get; private set; }
+        public IReviewsRepository Reviews { get; private set; }
+        public IParkingOwnersRepository ParkingOwners { get; private set; }
+        public IRefreshTokensRepository RefreshTokens { get; private set; }
+        public IEmailVerificationOtpsRepository EmailVerificationOtps { get; private set; }
+        public IPasswordResetOtpsRepository PasswordResetOtps { get; private set; }
+        public IAccessLogsRepository AccessLogs { get; private set; }
 
         public UnitOfWork(AppDbContext context)
         {
             _context = context;
+            Parkings = new ParkingsRepository(_context);
+            Reservations = new ReservationsRepository(_context);
+            SavedPlaces = new SavedPlacesRepository(_context);
+            Reviews = new ReviewsRepository(_context);
+            ParkingSpaces = new ParkingSpacesRepository(_context);
+            ParkingOwners = new ParkingOwnersRepository(_context);
+            RefreshTokens = new RefreshTokensRepository(_context);
+            EmailVerificationOtps = new EmailVerificationOtpsRepository(_context);
+            PasswordResetOtps = new PasswordResetOtpsRepository(_context);
+            AccessLogs = new AccessLogsRepository(_context);
         }
 
-        public IParkingsRepository Parkings => _parkingsRepository ??= new ParkingsRepository(_context);
-        public IParkingSpacesRepository ParkingSpaces => _parkingSpacesRepository ??= new ParkingSpacesRepository(_context);
-        public IReservationsRepository Reservations => _reservationsRepository ??= new ReservationsRepository(_context);
-        public ISavedPlacesRepository SavedPlaces => _savedPlacesRepository ??= new SavedPlacesRepository(_context);
-        public IReviewsRepository Reviews => _reviewsRepository ??= new ReviewsRepository(_context);
-
-        public IGenericRepository<T> Repository<T>() where T : class
+        public async Task<int> SaveChangesAsync()
         {
-            if (_repositories.TryGetValue(typeof(T), out var repository))
-            {
-                return (IGenericRepository<T>)repository;
-            }
-
-            var newRepository = new GenericRepository<T>(_context);
-            _repositories[typeof(T)] = newRepository;
-            return newRepository;
-        }
-
-        public async Task SaveChangesAsync()
-        {
-            await _context.SaveChangesAsync();
+            return await _context.SaveChangesAsync();
         }
 
         public async Task<IDbContextTransaction> BeginTransactionAsync()

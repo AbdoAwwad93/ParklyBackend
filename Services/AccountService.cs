@@ -133,7 +133,7 @@ namespace Parkly_Backend.Services
                     PayoutAccount = newOwner.PayoutAccount,
                     VerificationStatus = VerificationStatus.Pending
                 };
-                await _unitOfWork.Repository<ParkingOwner>().AddAsync(parkingOwner);
+                await _unitOfWork.ParkingOwners.AddAsync(parkingOwner);
                 await _unitOfWork.SaveChangesAsync();
 
                 await SendVerificationEmailAsync(newUser);
@@ -171,7 +171,7 @@ namespace Parkly_Backend.Services
             var (jwtToken, jti) = GenerateJwtToken(user);
             var refreshToken = GenerateRefreshTokenString(user.Id, jti);
 
-            await _unitOfWork.Repository<RefreshToken>().AddAsync(refreshToken);
+            await _unitOfWork.RefreshTokens.AddAsync(refreshToken);
             await _unitOfWork.SaveChangesAsync();
 
             data.Token = jwtToken;
@@ -184,12 +184,9 @@ namespace Parkly_Backend.Services
 
         private async Task SendVerificationEmailAsync(AppUser user)
         {
-            var repo = _unitOfWork.Repository<EmailVerificationOtp>();
+            var repo = _unitOfWork.EmailVerificationOtps;
             
-            // Invalidate any existing OTPs
-            var activeOtps = await repo.Query()
-                .Where(o => o.UserId == user.Id && !o.IsUsed && o.ExpiresAt > DateTime.UtcNow)
-                .ToListAsync();
+            var activeOtps = await repo.GetActiveOtpsAsync(user.Id);
             foreach (var otp in activeOtps)
             {
                 repo.Delete(otp);
@@ -218,11 +215,8 @@ namespace Parkly_Backend.Services
                 return ApiResponse.Failure("Invalid OTP or the code has expired.");
             }
 
-            var repo = _unitOfWork.Repository<EmailVerificationOtp>();
-            var otp = await repo.Query()
-                .Where(o => o.UserId == user.Id && !o.IsUsed && o.ExpiresAt > DateTime.UtcNow)
-                .OrderByDescending(o => o.CreatedAt)
-                .FirstOrDefaultAsync();
+            var repo = _unitOfWork.EmailVerificationOtps;
+            var otp = await repo.GetLatestValidOtpAsync(user.Id);
 
             if (otp == null || !VerifyOtp(verifyEmailDto.Otp, otp.CodeHash))
             {
@@ -265,10 +259,8 @@ namespace Parkly_Backend.Services
                 return ApiResponse.Success("If the email is registered, an OTP has been sent to reset your password.");
             }
 
-            var repo = _unitOfWork.Repository<PasswordResetOtp>();
-            var activeOtps = await repo.Query()
-                .Where(o => o.UserId == user.Id && !o.IsUsed && o.ExpiresAt > DateTime.UtcNow)
-                .ToListAsync();
+            var repo = _unitOfWork.PasswordResetOtps;
+            var activeOtps = await repo.GetActiveOtpsAsync(user.Id);
             foreach (var otp in activeOtps)
             {
                 repo.Delete(otp);
@@ -299,11 +291,8 @@ namespace Parkly_Backend.Services
                 return ApiResponse<string>.Failure("Invalid OTP or the code has expired.");
             }
 
-            var repo = _unitOfWork.Repository<PasswordResetOtp>();
-            var otp = await repo.Query()
-                .Where(o => o.UserId == user.Id && !o.IsUsed && o.ExpiresAt > DateTime.UtcNow)
-                .OrderByDescending(o => o.CreatedAt)
-                .FirstOrDefaultAsync();
+            var repo = _unitOfWork.PasswordResetOtps;
+            var otp = await repo.GetLatestValidOtpAsync(user.Id);
 
             if (otp == null || !VerifyOtp(verifyResetOtpDto.Otp, otp.CodeHash))
             {
@@ -386,7 +375,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse> LogoutAsync(TokenRequestDTO tokenRequest)
         {
-            var refreshTokenRepo = _unitOfWork.Repository<RefreshToken>();
+            var refreshTokenRepo = _unitOfWork.RefreshTokens;
             var storedToken = await refreshTokenRepo.Query()
                 .FirstOrDefaultAsync(rt => rt.Token == tokenRequest.RefreshToken);
 
@@ -447,7 +436,7 @@ namespace Parkly_Backend.Services
                 return ApiResponse<LoginResponseDTO>.Failure("Invalid token claims.");
             }
 
-            var refreshTokenRepo = _unitOfWork.Repository<RefreshToken>();
+            var refreshTokenRepo = _unitOfWork.RefreshTokens;
             var storedToken = await refreshTokenRepo.Query()
                 .FirstOrDefaultAsync(rt => rt.Token == tokenRequest.RefreshToken);
 

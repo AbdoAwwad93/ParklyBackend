@@ -11,8 +11,13 @@ namespace Parkly_Backend.Data.Repositories
         ISavedPlacesRepository SavedPlaces { get; }
         IReviewsRepository Reviews { get; }
 
-        IGenericRepository<T> Repository<T>() where T : class;
-        Task SaveChangesAsync();
+        IParkingOwnersRepository ParkingOwners { get; }
+        IRefreshTokensRepository RefreshTokens { get; }
+        IEmailVerificationOtpsRepository EmailVerificationOtps { get; }
+        IPasswordResetOtpsRepository PasswordResetOtps { get; }
+        IAccessLogsRepository AccessLogs { get; }
+
+        Task<int> SaveChangesAsync();
         Task<IDbContextTransaction> BeginTransactionAsync();
         Task CommitTransactionAsync();
         Task RollbackTransactionAsync();

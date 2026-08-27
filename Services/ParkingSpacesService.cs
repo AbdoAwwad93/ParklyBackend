@@ -32,7 +32,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<List<ParkingSpaceResponseDTO>>> GetByParkingIdAsync(Guid parkingId)
         {
-            var parking = await _unitOfWork.Repository<Parking>().GetByIdAsync(parkingId);
+            var parking = await _unitOfWork.Parkings.GetByIdAsync(parkingId);
             if (parking == null)
             {
                 return ApiResponse<List<ParkingSpaceResponseDTO>>.Failure("Parking not found.");
@@ -59,7 +59,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<ParkingSpaceResponseDTO>> CreateAsync(Guid ownerId, CreateParkingSpaceDTO dto)
         {
-            var parking = await _unitOfWork.Repository<Parking>().GetByIdAsync(dto.ParkingId);
+            var parking = await _unitOfWork.Parkings.GetByIdAsync(dto.ParkingId);
             if (parking == null)
             {
                 return ApiResponse<ParkingSpaceResponseDTO>.Failure("Parking not found.");
@@ -70,7 +70,7 @@ namespace Parkly_Backend.Services
             }
 
             var space = _mapper.Map<ParkingSpace>(dto);
-            await _unitOfWork.Repository<ParkingSpace>().AddAsync(space);
+            await _unitOfWork.ParkingSpaces.AddAsync(space);
             await _unitOfWork.SaveChangesAsync();
 
             var response = await BuildResponseAsync(space.SpaceId);
@@ -106,7 +106,7 @@ namespace Parkly_Backend.Services
                 return ApiResponse.Failure("Cannot delete this space because it has active reservations.");
             }
 
-            _unitOfWork.Repository<ParkingSpace>().Delete(space);
+            _unitOfWork.ParkingSpaces.Delete(space);
             await _unitOfWork.SaveChangesAsync();
 
             return ApiResponse.Success("Parking space deleted successfully.");

@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
@@ -51,10 +50,7 @@ namespace Parkly_Backend.Services
 
         private async Task<ParkingSpace> GetSpaceWithRulesAsync(Guid spaceId)
         {
-            var space = await _unitOfWork.Repository<ParkingSpace>().Query()
-                .Include(s => s.Parking)
-                .ThenInclude(p => p.PricingRules)
-                .FirstOrDefaultAsync(s => s.SpaceId == spaceId);
+            var space = await _unitOfWork.ParkingSpaces.GetByIdWithParkingAsync(spaceId);
 
             return space ?? throw new KeyNotFoundException("Parking space not found.");
         }

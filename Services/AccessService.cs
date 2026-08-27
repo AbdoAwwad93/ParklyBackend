@@ -94,7 +94,7 @@ namespace Parkly_Backend.Services
                     ScanTimestamp = DateTime.UtcNow
                 };
 
-                await _unitOfWork.Repository<AccessLog>().AddAsync(accessLog);
+                await _unitOfWork.AccessLogs.AddAsync(accessLog);
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
 
