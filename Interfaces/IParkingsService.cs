@@ -1,4 +1,4 @@
-﻿using Parkly_Backend.Models.DTOs;
+using Parkly_Backend.Models.DTOs;
 using Parkly_Backend.Models.Response;
 
 namespace Parkly_Backend.Interfaces
@@ -11,5 +11,6 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse<ParkingResponseDTO>> UpdateAsync(Guid ownerId, Guid id, UpdateParkingDTO dto);
         Task<ApiResponse> DeleteAsync(Guid ownerId, Guid id);
         Task<ApiResponse<List<SearchParkingDTO>>> SearchAsync(SearchParkingQuery query);
+        Task<ApiResponse<List<NearbyParkingDTO>>> GetNearbyAsync(NearbyParkingQuery query);
     }
 }

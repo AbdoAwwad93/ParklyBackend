@@ -90,6 +90,26 @@ namespace Parkly_Backend.Controllers
             return Ok(ApiResponse<SpaceAvailabilityDTO>.Success("Availability checked.", data));
         }
 
+        /// <summary>Finds nearby individual parking spaces relative to user coordinates, sorted by proximity.</summary>
+        /// <param name="query">The nearby location and filter parameters.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing nearby individual parking spaces ready for reservation.</returns>
+        /// <response code="200">Nearby parking spaces retrieved successfully.</response>
+        /// <response code="400">Invalid parameters or coordinates.</response>
+        [HttpGet("nearby")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<List<NearbyParkingSpaceDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetNearby([FromQuery] NearbyParkingQuery query)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request parameters.", ModelState));
+            }
+
+            var result = await _service.GetNearbySpacesAsync(query);
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+
         /// <summary>Creates a new parking space for a parking owned by the authenticated parking owner.</summary>
         /// <param name="dto">The parking space details.</param>
         /// <returns>An <see cref="ApiResponse{T}"/> containing the created parking space.</returns>

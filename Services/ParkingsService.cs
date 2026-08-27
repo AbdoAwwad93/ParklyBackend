@@ -1,9 +1,11 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using Parkly_Backend.Common.Helpers;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
+using Parkly_Backend.Models.Enums;
 using Parkly_Backend.Models.Response;
 
 namespace Parkly_Backend.Services
@@ -130,7 +132,7 @@ namespace Parkly_Backend.Services
                 var lat = query.Latitude.Value;
                 var lng = query.Longitude.Value;
                 var radius = query.RadiusKm.Value;
-                filtered = filtered.Where(p => DistanceKm(p.Latitude, p.Longitude, lat, lng) <= radius);
+                filtered = filtered.Where(p => GeoHelper.DistanceKm(p.Latitude, p.Longitude, lat, lng) <= radius);
             }
 
             var arrival = query.Arrival ?? DateTime.UtcNow;
@@ -152,29 +154,148 @@ namespace Parkly_Backend.Services
                     Longitude = parking.Longitude,
                     OperatingHours = parking.OperatingHours,
                     DistanceKm = query.Latitude.HasValue && query.Longitude.HasValue
-                        ? DistanceKm(parking.Latitude, parking.Longitude, query.Latitude.Value, query.Longitude.Value)
+                        ? GeoHelper.DistanceKm(parking.Latitude, parking.Longitude, query.Latitude.Value, query.Longitude.Value)
                         : null,
                     AvailableSpaces = availableSpaces.Count,
                     MinHourlyRate = activeSpaces.Count > 0 ? activeSpaces.Min(s => s.BaseHourlyRate) : null
                 });
             }
 
+            if (query.Latitude.HasValue && query.Longitude.HasValue)
+            {
+                results = results.OrderBy(r => r.DistanceKm ?? double.MaxValue).ToList();
+            }
+
             return ApiResponse<List<SearchParkingDTO>>.Success("Search completed successfully.", results);
         }
 
-        private static double DistanceKm(decimal lat1, decimal lng1, decimal lat2, decimal lng2)
+        public async Task<ApiResponse<List<NearbyParkingDTO>>> GetNearbyAsync(NearbyParkingQuery query)
         {
-            const double earthRadiusKm = 6371.0;
+            if (query.Latitude < -90 || query.Latitude > 90)
+            {
+                return ApiResponse<List<NearbyParkingDTO>>.Failure("Latitude must be between -90 and 90.");
+            }
+            if (query.Longitude < -180 || query.Longitude > 180)
+            {
+                return ApiResponse<List<NearbyParkingDTO>>.Failure("Longitude must be between -180 and 180.");
+            }
 
-            var dLat = (double)(lat2 - lat1) * Math.PI / 180.0;
-            var dLng = (double)(lng2 - lng1) * Math.PI / 180.0;
-            var sinLat = Math.Sin(dLat / 2) * Math.Sin(dLat / 2);
-            var sinLng = Math.Sin(dLng / 2) * Math.Sin(dLng / 2);
-            var cosLat1 = Math.Cos((double)lat1 * Math.PI / 180.0);
-            var cosLat2 = Math.Cos((double)lat2 * Math.PI / 180.0);
+            var arrival = query.Arrival ?? DateTime.UtcNow;
+            var departure = query.Departure ?? arrival.AddHours(1);
 
-            var a = sinLat + cosLat1 * cosLat2 * sinLng;
-            return earthRadiusKm * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+            if (arrival >= departure)
+            {
+                return ApiResponse<List<NearbyParkingDTO>>.Failure("Departure time must be after arrival time.");
+            }
+
+            var radius = query.RadiusKm > 0 ? query.RadiusKm : 5.0;
+            var (minLat, maxLat, minLng, maxLng) = GeoHelper.GetBoundingBox(query.Latitude, query.Longitude, radius);
+
+            var queryable = _unitOfWork.Repository<Parking>().Query()
+                .Include(p => p.ParkingSpaces)
+                .Where(p => p.Latitude >= minLat && p.Latitude <= maxLat &&
+                            p.Longitude >= minLng && p.Longitude <= maxLng);
+
+            if (query.VehicleSize.HasValue)
+            {
+                queryable = queryable.Where(p =>
+                    p.ParkingSpaces.Any(s => s.IsActive && s.VehicleSize == query.VehicleSize));
+            }
+
+            if (query.MaxRate.HasValue)
+            {
+                queryable = queryable.Where(p =>
+                    p.ParkingSpaces.Any(s => s.IsActive && s.BaseHourlyRate <= query.MaxRate));
+            }
+
+            var candidateParkings = await queryable.ToListAsync();
+
+            var inRangeParkings = new List<(Parking Parking, double Distance, bool IsOpenNow)>();
+            foreach (var parking in candidateParkings)
+            {
+                var distance = GeoHelper.DistanceKm(parking.Latitude, parking.Longitude, query.Latitude, query.Longitude);
+                if (distance > radius)
+                {
+                    continue;
+                }
+
+                var isWindowOpen = GeoHelper.IsWindowWithinOperatingHours(parking.OperatingHours, arrival, departure);
+                if (!query.IncludeClosed && !isWindowOpen)
+                {
+                    continue;
+                }
+
+                var isOpenNow = GeoHelper.IsOpenAt(parking.OperatingHours, DateTime.UtcNow);
+                inRangeParkings.Add((parking, distance, isOpenNow));
+            }
+
+            if (inRangeParkings.Count == 0)
+            {
+                return ApiResponse<List<NearbyParkingDTO>>.Success("Nearby parkings retrieved successfully.", new List<NearbyParkingDTO>());
+            }
+
+            // Single batch query for available spaces across all in-range facilities (eliminates N+1)
+            var parkingIds = inRangeParkings.Select(x => x.Parking.ParkingId).ToList();
+            var availableSpacesByParking = await _availabilityService.GetAvailableSpacesForParkingsAsync(parkingIds, arrival, departure);
+
+            var results = new List<NearbyParkingDTO>();
+
+            foreach (var (parking, distance, isOpenNow) in inRangeParkings)
+            {
+                var availableSpaces = availableSpacesByParking.GetValueOrDefault(parking.ParkingId) ?? new List<ParkingSpace>();
+                var activeSpaces = parking.ParkingSpaces.Where(s => s.IsActive).ToList();
+
+                if (query.VehicleSize.HasValue)
+                {
+                    availableSpaces = availableSpaces.Where(s => s.VehicleSize == query.VehicleSize.Value).ToList();
+                }
+
+                if (query.MaxRate.HasValue)
+                {
+                    availableSpaces = availableSpaces.Where(s => s.BaseHourlyRate <= query.MaxRate.Value).ToList();
+                }
+
+                if (query.OnlyAvailable && availableSpaces.Count == 0)
+                {
+                    continue;
+                }
+
+                decimal? minRate = null;
+                if (availableSpaces.Count > 0)
+                {
+                    minRate = availableSpaces.Min(s => s.BaseHourlyRate);
+                }
+                else if (activeSpaces.Count > 0)
+                {
+                    minRate = activeSpaces.Min(s => s.BaseHourlyRate);
+                }
+
+                results.Add(new NearbyParkingDTO
+                {
+                    ParkingId = parking.ParkingId,
+                    OwnerId = parking.OwnerId,
+                    Name = parking.Name,
+                    Address = parking.Address,
+                    Latitude = parking.Latitude,
+                    Longitude = parking.Longitude,
+                    OperatingHours = parking.OperatingHours,
+                    IsOpenNow = isOpenNow,
+                    DistanceKm = distance,
+                    AvailableSpaces = availableSpaces.Count,
+                    TotalSpaces = activeSpaces.Count,
+                    MinHourlyRate = minRate
+                });
+            }
+
+            IEnumerable<NearbyParkingDTO> sorted = query.SortBy == NearbySortBy.Price
+                ? results.OrderBy(p => p.MinHourlyRate ?? decimal.MaxValue).ThenBy(p => p.DistanceKm)
+                : results.OrderBy(p => p.DistanceKm).ThenBy(p => p.MinHourlyRate ?? decimal.MaxValue);
+
+            var page = query.Page > 0 ? query.Page : 1;
+            var pageSize = query.PageSize > 0 ? query.PageSize : 20;
+            var pagedResults = sorted.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            return ApiResponse<List<NearbyParkingDTO>>.Success("Nearby parkings retrieved successfully.", pagedResults);
         }
     }
 }

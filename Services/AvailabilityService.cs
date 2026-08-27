@@ -37,20 +37,38 @@ namespace Parkly_Backend.Services
 
         public async Task<List<ParkingSpace>> GetAvailableSpacesAsync(Guid parkingId, DateTime arrival, DateTime departure)
         {
+            var dict = await GetAvailableSpacesForParkingsAsync(new[] { parkingId }, arrival, departure);
+            return dict.GetValueOrDefault(parkingId) ?? new List<ParkingSpace>();
+        }
+
+        public async Task<Dictionary<Guid, List<ParkingSpace>>> GetAvailableSpacesForParkingsAsync(IEnumerable<Guid> parkingIds, DateTime arrival, DateTime departure)
+        {
             if (arrival >= departure)
             {
                 throw new ArgumentException("Departure time must be after arrival time.");
             }
 
+            var idList = parkingIds.Distinct().ToList();
+            var result = new Dictionary<Guid, List<ParkingSpace>>();
+            foreach (var id in idList)
+            {
+                result[id] = new List<ParkingSpace>();
+            }
+
+            if (idList.Count == 0)
+            {
+                return result;
+            }
+
             var spaces = await _unitOfWork.Repository<ParkingSpace>().Query()
                 .Include(s => s.Parking)
                     .ThenInclude(p => p.PricingRules)
-                .Where(s => s.ParkingId == parkingId && s.IsActive)
+                .Where(s => idList.Contains(s.ParkingId) && s.IsActive)
                 .ToListAsync();
 
             if (spaces.Count == 0)
             {
-                return new List<ParkingSpace>();
+                return result;
             }
 
             var spaceIds = spaces.Select(s => s.SpaceId).ToList();
@@ -63,7 +81,6 @@ namespace Parkly_Backend.Services
                 .Distinct()
                 .ToListAsync();
 
-            var available = new List<ParkingSpace>();
             foreach (var space in spaces)
             {
                 if (RulesOverlapBlackout(space.Parking.PricingRules, arrival, departure))
@@ -81,10 +98,13 @@ namespace Parkly_Backend.Services
                     continue;
                 }
 
-                available.Add(space);
+                if (result.TryGetValue(space.ParkingId, out var list))
+                {
+                    list.Add(space);
+                }
             }
 
-            return available;
+            return result;
         }
 
         private async Task<bool> HasOverlappingReservationAsync(Guid spaceId, DateTime arrival, DateTime departure, Guid? excludeReservationId)
