@@ -24,10 +24,15 @@ namespace Parkly_Backend.Data
         public DbSet<PasswordResetOtp> PasswordResetOtps { get; set; }
         public DbSet<EmailVerificationOtp> EmailVerificationOtps { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        public DbSet<SavedPlace> SavedPlaces { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
+
+            builder.Entity<SavedPlace>()
+                .HasIndex(s => new { s.UserId, s.PlaceType })
+                .HasDatabaseName("IX_SavedPlaces_UserId_PlaceType");
         }
     }
 }

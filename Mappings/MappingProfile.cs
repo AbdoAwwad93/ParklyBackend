@@ -45,6 +45,9 @@ namespace Parkly_Backend.Mappings
                 .ForMember(dest => dest.LastName, opt => opt.MapFrom(src => src.FullName.Contains(" ") ? src.FullName.Substring(src.FullName.IndexOf(" ") + 1) : string.Empty))
                 .ReverseMap();
             CreateMap<AppUser, LoginResponseDTO>();
+            CreateMap<SavedPlace, SavedPlaceResponseDTO>();
+            CreateMap<CreateSavedPlaceDTO, SavedPlace>();
+            CreateMap<UpdateSavedPlaceDTO, SavedPlace>();
         }
     }
 }
