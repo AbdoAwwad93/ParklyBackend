@@ -99,6 +99,7 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IOccupancyService, OccupancyService>();
             builder.Services.AddScoped<IAccessService, AccessService>();
             builder.Services.AddScoped<ISavedPlacesService, SavedPlacesService>();
+            builder.Services.AddScoped<IReviewsService, ReviewsService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
 
             builder.Services.AddSignalR();

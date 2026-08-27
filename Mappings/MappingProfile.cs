@@ -39,7 +39,7 @@ namespace Parkly_Backend.Mappings
             CreateMap<UpdateParkingSpaceDTO, ParkingSpace>();
             CreateMap<ParkingSpace, ParkingSpaceResponseDTO>()
                 .ForMember(dest => dest.ParkingName, opt => opt.MapFrom(src => src.Parking.Name));
-            CreateMap<Review, ReviewDTO>().ReverseMap();
+            CreateMap<Review, ReviewResponseDTO>();
             CreateMap<AppUser, ProfileDTO>()
                 .ForMember(dest => dest.FirstName, opt => opt.MapFrom(src => src.FullName.Contains(" ") ? src.FullName.Substring(0, src.FullName.IndexOf(" ")) : src.FullName))
                 .ForMember(dest => dest.LastName, opt => opt.MapFrom(src => src.FullName.Contains(" ") ? src.FullName.Substring(src.FullName.IndexOf(" ") + 1) : string.Empty))
