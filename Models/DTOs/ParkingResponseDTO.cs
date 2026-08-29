@@ -23,5 +23,8 @@ namespace Parkly_Backend.Models.DTOs
 
         /// <summary>The operating hours of the parking facility.</summary>
         public string? OperatingHours { get; set; }
+
+        /// <summary>List of amenities or features available at the parking facility.</summary>
+        public List<string> Features { get; set; } = new List<string>();
     }
 }

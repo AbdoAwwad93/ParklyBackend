@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Parkly_Backend.Models.Enums;
 
 namespace Parkly_Backend.Models
 {
@@ -23,6 +24,7 @@ namespace Parkly_Backend.Models
         public string? OperatingHours { get; set; }
         [ForeignKey("OwnerId")]
         public ParkingOwner ParkingOwner { get; set; } = null!;
+        public List<ParkingFeature> Features { get; set; } = new List<ParkingFeature>();
         public List<ParkingSpace> ParkingSpaces { get; set; } = new List<ParkingSpace>();
         public List<PricingRule> PricingRules { get; set; } = new List<PricingRule>();
     }

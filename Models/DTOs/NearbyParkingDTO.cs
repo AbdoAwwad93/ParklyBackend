@@ -40,5 +40,8 @@ namespace Parkly_Backend.Models.DTOs
 
         /// <summary>The minimum base hourly rate among active spaces in the facility.</summary>
         public decimal? MinHourlyRate { get; set; }
+
+        /// <summary>List of amenities or features available at the parking facility.</summary>
+        public List<string> Features { get; set; } = new List<string>();
     }
 }

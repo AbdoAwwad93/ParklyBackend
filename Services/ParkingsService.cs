@@ -152,7 +152,8 @@ namespace Parkly_Backend.Services
                         ? GeoHelper.DistanceKm(parking.Latitude, parking.Longitude, query.Latitude.Value, query.Longitude.Value)
                         : null,
                     AvailableSpaces = availableSpaces.Count,
-                    MinHourlyRate = activeSpaces.Count > 0 ? activeSpaces.Min(s => s.BaseHourlyRate) : null
+                    MinHourlyRate = activeSpaces.Count > 0 ? activeSpaces.Min(s => s.BaseHourlyRate) : null,
+                    Features = parking.Features.Select(f => f.ToString()).ToList()
                 });
             }
 
@@ -262,7 +263,8 @@ namespace Parkly_Backend.Services
                     DistanceKm = distance,
                     AvailableSpaces = availableSpaces.Count,
                     TotalSpaces = activeSpaces.Count,
-                    MinHourlyRate = minRate
+                    MinHourlyRate = minRate,
+                    Features = parking.Features.Select(f => f.ToString()).ToList()
                 });
             }
 
