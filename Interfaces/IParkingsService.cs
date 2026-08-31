@@ -12,5 +12,6 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse> DeleteAsync(Guid ownerId, Guid id);
         Task<ApiResponse<List<SearchParkingDTO>>> SearchAsync(SearchParkingQuery query);
         Task<ApiResponse<List<NearbyParkingDTO>>> GetNearbyAsync(NearbyParkingQuery query);
+        Task<ApiResponse<List<RecommendParkingDTO>>> GetRecommendationsAsync(Guid userId, RecommendParkingQuery query);
     }
 }

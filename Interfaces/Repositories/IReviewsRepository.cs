@@ -13,5 +13,6 @@ namespace Parkly_Backend.Interfaces.Repositories
         Task<int> GetTotalReviewsForParkingAsync(Guid parkingId);
         Task<double> GetAverageRatingForParkingAsync(Guid parkingId);
         Task<List<Review>> GetUserReviewsAsync(Guid userId);
+        Task<Dictionary<Guid, (double AverageRating, int TotalReviews)>> GetReviewStatsForParkingsAsync(IEnumerable<Guid> parkingIds);
     }
 }

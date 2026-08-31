@@ -63,5 +63,21 @@ namespace Parkly_Backend.Data.Repositories
                 .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
         }
+
+        public async Task<Dictionary<Guid, (double AverageRating, int TotalReviews)>> GetReviewStatsForParkingsAsync(IEnumerable<Guid> parkingIds)
+        {
+            var stats = await _dbSet
+                .Where(r => parkingIds.Contains(r.Reservation.ParkingSpace.ParkingId))
+                .GroupBy(r => r.Reservation.ParkingSpace.ParkingId)
+                .Select(g => new 
+                {
+                    ParkingId = g.Key,
+                    AverageRating = g.Average(r => r.Rating),
+                    TotalReviews = g.Count()
+                })
+                .ToListAsync();
+
+            return stats.ToDictionary(s => s.ParkingId, s => (s.AverageRating, s.TotalReviews));
+        }
     }
 }

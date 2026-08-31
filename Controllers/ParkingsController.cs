@@ -106,6 +106,29 @@ namespace Parkly_Backend.Controllers
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 
+        /// <summary>Recommends personalized parking facilities for the user.</summary>
+        /// <param name="query">The recommendation parameters.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing recommended parking facilities.</returns>
+        /// <response code="200">Recommendations retrieved successfully.</response>
+        /// <response code="400">Invalid parameters.</response>
+        /// <response code="401">User is not authenticated.</response>
+        [HttpGet("recommend")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<List<RecommendParkingDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> Recommend([FromQuery] RecommendParkingQuery query)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request parameters.", ModelState));
+            }
+
+            var userId = User.GetRequiredUserId();
+            var result = await _service.GetRecommendationsAsync(userId, query);
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+
         /// <summary>Creates a new parking facility for the authenticated parking owner.</summary>
         /// <param name="dto">The parking details.</param>
         /// <returns>An <see cref="ApiResponse{T}"/> containing the created parking facility.</returns>
