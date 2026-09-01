@@ -104,9 +104,8 @@ namespace Parkly_Backend.Services
                 return ApiResponse<ParkingReviewsSummaryDTO>.Failure("Parking facility not found.");
             }
 
-            int totalReviews = await _unitOfWork.Reviews.GetTotalReviewsForParkingAsync(parkingId);
-            double averageRating = await _unitOfWork.Reviews.GetAverageRatingForParkingAsync(parkingId);
-            averageRating = Math.Round(averageRating, 1);
+            int totalReviews = parking.TotalReviews;
+            double averageRating = parking.AverageRating;
 
             page = page > 0 ? page : 1;
             pageSize = pageSize > 0 ? pageSize : 20;
