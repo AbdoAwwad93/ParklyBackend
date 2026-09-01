@@ -53,6 +53,23 @@ namespace Parkly_Backend
                 options.SenderEmail = Environment.GetEnvironmentVariable("GmailSenderEmail") ?? string.Empty;
             });
 
+            builder.Services.Configure<SupabaseOptions>(options =>
+            {
+                options.Url = Environment.GetEnvironmentVariable("SupabaseUrl")!;
+                options.Key = Environment.GetEnvironmentVariable("SupabaseKey")!;
+                options.BucketName = Environment.GetEnvironmentVariable("SupabaseBucketName")!;
+            });
+
+            builder.Services.AddScoped<Supabase.Client>(provider =>
+            {
+                var options = provider.GetRequiredService<IOptions<SupabaseOptions>>().Value;
+                return new Supabase.Client(options.Url, options.Key, new Supabase.SupabaseOptions
+                {
+                    AutoRefreshToken = false,
+                    AutoConnectRealtime = false
+                });
+            });
+
             // Add services to the container.
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseNpgsql(connectionString));
@@ -84,7 +101,7 @@ namespace Parkly_Backend
                         ValidIssuer = Environment.GetEnvironmentVariable("Issuer"),
                         ValidAudience = Environment.GetEnvironmentVariable("Audience"),
                         IssuerSigningKey = new SymmetricSecurityKey(
-                            Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("SecretKey")))
+                            Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("SecretKey")!))
                     };
                 });
             builder.Services.AddScoped<IAccountService, AccountService>();
@@ -100,6 +117,7 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IAccessService, AccessService>();
             builder.Services.AddScoped<ISavedPlacesService, SavedPlacesService>();
             builder.Services.AddScoped<IReviewsService, ReviewsService>();
+            builder.Services.AddScoped<IStorageService, SupabaseStorageService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
 
             builder.Services.AddSignalR();

@@ -255,6 +255,30 @@ namespace Parkly_Backend.Controllers
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 
+        /// <summary>Uploads a profile picture for the currently authenticated user.</summary>
+        /// <param name="image">The image file to upload.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the new image URL.</returns>
+        /// <response code="200">Image uploaded successfully.</response>
+        /// <response code="400">Invalid image file or upload failed.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        [HttpPost("profile-picture")]
+        [Tags("4. User Profile")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> UploadProfilePicture(IFormFile image)
+        {
+            var userId = User.GetUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized();
+            }
+
+            var result = await _service.UploadProfilePictureAsync(userId.Value, image);
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+
         /// <summary>Logs out the current user by revoking their refresh token.</summary>
         /// <param name="tokenRequest">The token payload containing the access token and the refresh token.</param>
         /// <returns>An <see cref="ApiResponse"/> indicating success.</returns>

@@ -28,9 +28,11 @@ namespace Parkly_Backend.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly JwtOptions _jwtOptions;
         private readonly ILogger<AccountService> _logger;
+        private readonly IStorageService _storageService;
+        private readonly SupabaseOptions _supabaseOptions;
         private static readonly Random _random = new Random();
         
-        public AccountService(UserManager<AppUser> userManager, IMapper mapper, IEmailService emailService, IUnitOfWork unitOfWork, IOptions<JwtOptions> jwtOptions, ILogger<AccountService> logger)
+        public AccountService(UserManager<AppUser> userManager, IMapper mapper, IEmailService emailService, IUnitOfWork unitOfWork, IOptions<JwtOptions> jwtOptions, ILogger<AccountService> logger, IStorageService storageService, IOptions<SupabaseOptions> supabaseOptions)
         {
             _userManager = userManager;
             _mapper = mapper;
@@ -38,6 +40,8 @@ namespace Parkly_Backend.Services
             _unitOfWork = unitOfWork;
             _jwtOptions = jwtOptions.Value;
             _logger = logger;
+            _storageService = storageService;
+            _supabaseOptions = supabaseOptions.Value;
         }
         public (string Token, string Jti) GenerateJwtToken(AppUser user)
         {
@@ -476,6 +480,62 @@ namespace Parkly_Backend.Services
 
             _logger.LogInformation("Token refreshed successfully for UserId {UserId}.", user.Id);
             return ApiResponse<LoginResponseDTO>.Success("Token refreshed successfully.", data);
+        }
+
+        public async Task<ApiResponse<string>> UploadProfilePictureAsync(Guid userId, Microsoft.AspNetCore.Http.IFormFile image)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return ApiResponse<string>.Failure("User not found.");
+            }
+
+            if (image == null || image.Length == 0)
+            {
+                return ApiResponse<string>.Failure("No image provided.");
+            }
+
+            // Optional: check for existing image and delete it if it's hosted on our Supabase
+            if (!string.IsNullOrEmpty(user.ProfilePictureUrl) && user.ProfilePictureUrl.Contains(_supabaseOptions.Url))
+            {
+                try
+                {
+                    var uri = new Uri(user.ProfilePictureUrl);
+                    var existingFileName = Path.GetFileName(uri.LocalPath);
+                    if (!string.IsNullOrEmpty(existingFileName))
+                    {
+                        await _storageService.DeleteFileAsync(_supabaseOptions.BucketName, existingFileName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to delete existing profile picture for user {UserId}", userId);
+                }
+            }
+
+            var extension = Path.GetExtension(image.FileName);
+            var newFileName = $"{userId}-{Guid.NewGuid()}{extension}";
+
+            try
+            {
+                var url = await _storageService.UploadFileAsync(image, _supabaseOptions.BucketName, newFileName);
+                
+                user.ProfilePictureUrl = url;
+                var result = await _userManager.UpdateAsync(user);
+                
+                if (!result.Succeeded)
+                {
+                    var errors = result.Errors.Select(e => e.Description).ToList();
+                    return ApiResponse<string>.Failure("Failed to update user profile picture.", errors);
+                }
+
+                return ApiResponse<string>.Success("Profile picture uploaded successfully.", url);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error uploading profile picture for user {UserId}", userId);
+                return ApiResponse<string>.Failure("An error occurred while uploading the image.");
+            }
         }
     }
 }

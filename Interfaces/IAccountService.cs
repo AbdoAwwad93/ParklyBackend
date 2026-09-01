@@ -20,5 +20,6 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse<ProfileDTO>> UpdateProfileAsync(Guid userId, UpdateProfileDTO dto);
         Task<ApiResponse> LogoutAsync(TokenRequestDTO tokenRequest);
         Task<ApiResponse<LoginResponseDTO>> RefreshTokenAsync(TokenRequestDTO tokenRequest);
+        Task<ApiResponse<string>> UploadProfilePictureAsync(Guid userId, Microsoft.AspNetCore.Http.IFormFile image);
     }
 }
