@@ -26,5 +26,11 @@ namespace Parkly_Backend.Models.DTOs
 
         /// <summary>List of amenities or features available at the parking facility.</summary>
         public List<string> Features { get; set; } = new List<string>();
+
+        /// <summary>The average user rating of the parking facility.</summary>
+        public double AverageRating { get; set; }
+
+        /// <summary>The total number of reviews for the parking facility.</summary>
+        public int TotalReviews { get; set; }
     }
 }

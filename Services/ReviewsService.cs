@@ -58,6 +58,7 @@ namespace Parkly_Backend.Services
 
             await _unitOfWork.Reviews.AddAsync(review);
             await _unitOfWork.SaveChangesAsync();
+            await UpdateParkingRatingStatsAsync(reservation.ParkingSpace.ParkingId);
 
             var response = _mapper.Map<ReviewResponseDTO>(review);
             
@@ -86,6 +87,7 @@ namespace Parkly_Backend.Services
             review.Comment = dto.Comment;
 
             await _unitOfWork.SaveChangesAsync();
+            await UpdateParkingRatingStatsAsync(review.Reservation.ParkingSpace.ParkingId);
 
             var response = _mapper.Map<ReviewResponseDTO>(review);
             response.UserName = review.Reservation.User.FullName;
@@ -160,8 +162,20 @@ namespace Parkly_Backend.Services
 
             _unitOfWork.Reviews.Delete(review);
             await _unitOfWork.SaveChangesAsync();
+            await UpdateParkingRatingStatsAsync(review.Reservation.ParkingSpace.ParkingId);
 
             return ApiResponse.Success("Review deleted successfully.");
+        }
+
+        private async Task UpdateParkingRatingStatsAsync(Guid parkingId)
+        {
+            var parking = await _unitOfWork.Parkings.GetByIdAsync(parkingId);
+            if (parking != null)
+            {
+                parking.TotalReviews = await _unitOfWork.Reviews.GetTotalReviewsForParkingAsync(parkingId);
+                parking.AverageRating = Math.Round(await _unitOfWork.Reviews.GetAverageRatingForParkingAsync(parkingId), 1);
+                await _unitOfWork.SaveChangesAsync();
+            }
         }
     }
 }

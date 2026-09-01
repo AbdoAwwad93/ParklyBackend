@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Parkly_Backend.Models.DTOs
@@ -16,6 +16,8 @@ namespace Parkly_Backend.Models.DTOs
         public decimal Longitude { get; set; }
         [MaxLength(100)]
         public string? OperatingHours { get; set; }
+        public double AverageRating { get; set; }
+        public int TotalReviews { get; set; }
         public List<ParkingSpace> ParkingSpaces { get; set; } = new List<ParkingSpace>();
         public List<PricingRule> PricingRules { get; set; } = new List<PricingRule>();
     }

@@ -24,6 +24,8 @@ namespace Parkly_Backend.Models
         public string? OperatingHours { get; set; }
         [ForeignKey("OwnerId")]
         public ParkingOwner ParkingOwner { get; set; } = null!;
+        public double AverageRating { get; set; }
+        public int TotalReviews { get; set; }
         public List<ParkingFeature> Features { get; set; } = new List<ParkingFeature>();
         public List<ParkingSpace> ParkingSpaces { get; set; } = new List<ParkingSpace>();
         public List<PricingRule> PricingRules { get; set; } = new List<PricingRule>();

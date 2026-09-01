@@ -264,7 +264,8 @@ namespace Parkly_Backend.Services
                     AvailableSpaces = availableSpaces.Count,
                     TotalSpaces = activeSpaces.Count,
                     MinHourlyRate = minRate,
-                    Features = parking.Features.Select(f => f.ToString()).ToList()
+                    Features = parking.Features.Select(f => f.ToString()).ToList(),
+                    AverageRating = parking.AverageRating
                 });
             }
 
@@ -301,7 +302,6 @@ namespace Parkly_Backend.Services
 
             var parkingIds = activeParkings.Select(p => p.ParkingId).ToList();
             var availableSpacesByParking = await _availabilityService.GetAvailableSpacesForParkingsAsync(parkingIds, arrival, departure);
-            var reviewStats = await _unitOfWork.Reviews.GetReviewStatsForParkingsAsync(parkingIds);
 
             var scoredParkings = new List<(Parking Parking, int Score, string Reason, double? Distance, bool IsOpenNow, int AvailableSpaces, int TotalSpaces, decimal? MinRate, double AvgRating, int TotalReviews)>();
 
@@ -402,9 +402,8 @@ namespace Parkly_Backend.Services
                     }
                 }
 
-                var stats = reviewStats.GetValueOrDefault(parking.ParkingId);
-                double avgRating = stats.AverageRating;
-                int totalReviews = stats.TotalReviews;
+                double avgRating = parking.AverageRating;
+                int totalReviews = parking.TotalReviews;
 
                 // 5. Rating Bonus
                 if (totalReviews > 0)
