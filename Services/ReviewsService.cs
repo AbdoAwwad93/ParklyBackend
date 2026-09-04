@@ -123,6 +123,7 @@ namespace Parkly_Backend.Services
                     var dto = _mapper.Map<ReviewResponseDTO>(r);
                     dto.UserName = r.Reservation.User.FullName;
                     dto.ParkingName = r.Reservation.ParkingSpace.Parking.Name;
+                    dto.ProfilePictureUrl = r.Reservation.User.ProfilePictureUrl;
                     return dto;
                 }).ToList()
             };

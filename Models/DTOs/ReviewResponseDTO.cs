@@ -10,6 +10,7 @@ namespace Parkly_Backend.Models.DTOs
         public string? Comment { get; set; }
         public DateTime CreatedAt { get; set; }
         public string UserName { get; set; } = string.Empty;
+        public string? ProfilePictureUrl { get; set; }
         public string ParkingName { get; set; } = string.Empty;
     }
 }
