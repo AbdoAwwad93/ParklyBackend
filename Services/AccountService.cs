@@ -101,6 +101,13 @@ namespace Parkly_Backend.Services
                 return ApiResponse.Failure("Account creation failed", errors);
             
             }
+
+            var roleResult = await _userManager.AddToRoleAsync(newUser, UserRole.Driver.ToString());
+            if (!roleResult.Succeeded)
+            {
+                _logger.LogWarning("Failed to assign role {Role} to user {Email}: {Errors}",
+                    UserRole.Driver, user.Email, string.Join("; ", roleResult.Errors.Select(e => e.Description)));
+            }
             
             await SendVerificationEmailAsync(newUser);
 
@@ -127,6 +134,16 @@ namespace Parkly_Backend.Services
                 {
                     await _unitOfWork.RollbackTransactionAsync();
                     var errors = result.Errors.Select(e => e.Description).ToList();
+                    return ApiResponse.Failure("Account creation failed", errors);
+                }
+
+                var roleResult = await _userManager.AddToRoleAsync(newUser, UserRole.ParkingOwner.ToString());
+                if (!roleResult.Succeeded)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    var errors = roleResult.Errors.Select(e => e.Description).ToList();
+                    _logger.LogWarning("Failed to assign role {Role} to owner {Email}: {Errors}",
+                        UserRole.ParkingOwner, newOwner.Email, string.Join("; ", errors));
                     return ApiResponse.Failure("Account creation failed", errors);
                 }
 

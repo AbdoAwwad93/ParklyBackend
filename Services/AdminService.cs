@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
@@ -35,6 +35,13 @@ namespace Parkly_Backend.Services
             {
                 var errors = result.Errors.Select(e => e.Description).ToList();
                 return ApiResponse.Failure("Account creation failed", errors);
+            }
+
+            var roleResult = await _userManager.AddToRoleAsync(newUser, UserRole.Admin.ToString());
+            if (!roleResult.Succeeded)
+            {
+                var errors = roleResult.Errors.Select(e => e.Description).ToList();
+                return ApiResponse.Failure("Failed to assign Admin role", errors);
             }
 
             return ApiResponse.Success("Admin account created successfully!");
