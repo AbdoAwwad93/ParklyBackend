@@ -1,12 +1,8 @@
 using System;
-using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using Parkly_Backend.Configuration;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
@@ -21,49 +17,31 @@ namespace Parkly_Backend.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOccupancyService _occupancyService;
-        private readonly JwtOptions _jwtOptions;
         private readonly ILogger<AccessService> _logger;
 
-        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService, IOptions<JwtOptions> jwtOptions, ILogger<AccessService> logger)
+        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService, IOptions<JwtOptions>? jwtOptions, ILogger<AccessService> logger)
         {
             _unitOfWork = unitOfWork;
             _occupancyService = occupancyService;
-            _jwtOptions = jwtOptions.Value;
             _logger = logger;
         }
 
         public async Task<ApiResponse> ProcessScanAsync(AccessScanDTO dto)
         {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var keyString = _jwtOptions.SecretKey;
-            var key = Encoding.UTF8.GetBytes(keyString);
+            if (string.IsNullOrWhiteSpace(dto.QrToken))
+            {
+                return ApiResponse.Failure("QR code cannot be empty.");
+            }
+
+            var code = dto.QrToken.Trim();
 
             try
             {
-                tokenHandler.ValidateToken(dto.QrToken, new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = true,
-                    ValidIssuer = _jwtOptions.Issuer,
-                    ValidateAudience = false,
-                    ValidateLifetime = true,
-                    ClockSkew = TimeSpan.Zero
-                }, out SecurityToken validatedToken);
-
-                var jwtToken = (JwtSecurityToken)validatedToken;
-                var reservationIdClaim = jwtToken.Claims.FirstOrDefault(x => x.Type == "ReservationId")?.Value;
-                
-                if (string.IsNullOrEmpty(reservationIdClaim) || !Guid.TryParse(reservationIdClaim, out Guid reservationId))
-                {
-                    return ApiResponse.Failure("Invalid QR code payload.");
-                }
-
-                var reservation = await _unitOfWork.Reservations.GetReservationWithIncludesAsync(reservationId);
+                var reservation = await _unitOfWork.Reservations.GetByQrCodeWithIncludesAsync(code);
 
                 if (reservation == null)
                 {
-                    return ApiResponse.Failure("Reservation not found.");
+                    return ApiResponse.Failure("Invalid QR code or reservation not found.");
                 }
 
                 await _unitOfWork.BeginTransactionAsync();
@@ -72,7 +50,7 @@ namespace Parkly_Backend.Services
                 {
                     if (reservation.Status != ReservationStatus.Confirmed)
                     {
-                        _logger.LogWarning("Failed entry scan. Reservation {ReservationId} status is {Status}", reservationId, reservation.Status);
+                        _logger.LogWarning("Failed entry scan. Reservation {ReservationId} status is {Status}", reservation.ReservationId, reservation.Status);
                         return ApiResponse.Failure($"Cannot process Entry. Current status: {reservation.Status}");
                     }
                     reservation.Status = ReservationStatus.CheckedIn;
@@ -81,7 +59,7 @@ namespace Parkly_Backend.Services
                 {
                     if (reservation.Status != ReservationStatus.CheckedIn)
                     {
-                        _logger.LogWarning("Failed exit scan. Reservation {ReservationId} status is {Status}", reservationId, reservation.Status);
+                        _logger.LogWarning("Failed exit scan. Reservation {ReservationId} status is {Status}", reservation.ReservationId, reservation.Status);
                         return ApiResponse.Failure($"Cannot process Exit. Current status: {reservation.Status}");
                     }
                     reservation.Status = ReservationStatus.Completed;
@@ -104,15 +82,11 @@ namespace Parkly_Backend.Services
 
                 return ApiResponse.Success($"{dto.ScanType} processed successfully.");
             }
-            catch (SecurityTokenExpiredException ex)
-            {
-                _logger.LogWarning(ex, "QR code has expired");
-                return ApiResponse.Failure("QR code has expired.");
-            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Invalid QR code presented");
-                return ApiResponse.Failure("Invalid QR code.");
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error processing {ScanType} scan for QR code", dto.ScanType);
+                return ApiResponse.Failure("An error occurred while processing the scan.");
             }
         }
     }

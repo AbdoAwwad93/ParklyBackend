@@ -1,4 +1,4 @@
-﻿using Parkly_Backend.Models.Enums;
+using Parkly_Backend.Models.Enums;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -15,7 +15,7 @@ namespace Parkly_Backend.Models.DTOs
         [MaxLength(50)]
         public ReservationStatus Status { get; set; } = ReservationStatus.Confirmed;
         [MaxLength(255)]
-        public string? QrCodeHash { get; set; }
+        public string? QrCode { get; set; }
      
     }
 }

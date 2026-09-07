@@ -79,5 +79,24 @@ namespace Parkly_Backend.Data.Repositories
                 .Where(r => r.ParkingSpace.ParkingId == parkingId && r.Status == ReservationStatus.CheckedIn)
                 .CountAsync();
         }
+
+        public async Task<Reservation?> GetByQrCodeWithIncludesAsync(string qrCode)
+        {
+            return await _dbSet
+                .Include(r => r.ParkingSpace)
+                .ThenInclude(ps => ps.Parking)
+                .Include(r => r.User)
+                .Include(r => r.Review)
+                .Where(r => r.QrCode == qrCode)
+                .OrderByDescending(r => r.ArrivalTime)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<bool> IsQrCodeInUseAsync(string qrCode)
+        {
+            return await _dbSet
+                .AnyAsync(r => r.QrCode == qrCode &&
+                    (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.CheckedIn));
+        }
     }
 }

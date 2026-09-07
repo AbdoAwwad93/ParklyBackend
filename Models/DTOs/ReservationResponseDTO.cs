@@ -23,6 +23,8 @@ namespace Parkly_Backend.Models.DTOs
         public decimal TotalPrice { get; set; }
         /// <summary>The current status of the reservation.</summary>
         public ReservationStatus Status { get; set; }
+        /// <summary>The 6-digit access / QR code for gate entry.</summary>
+        public string? QrCode { get; set; }
         /// <summary>When the reservation was created.</summary>
         public DateTime CreatedAt { get; set; }
     }

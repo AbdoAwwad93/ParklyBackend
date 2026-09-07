@@ -84,11 +84,11 @@ namespace Parkly_Backend.Controllers
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 
-        /// <summary>Generates a QR code token for an existing reservation.</summary>
+        /// <summary>Generates or retrieves a 6-digit numeric QR / access code for an existing reservation.</summary>
         /// <param name="id">The id of the reservation.</param>
-        /// <returns>An <see cref="ApiResponse{T}"/> containing the QR code token.</returns>
-        /// <response code="200">QR code generated successfully.</response>
-        /// <response code="400">The QR code could not be generated.</response>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the 6-digit QR access code.</returns>
+        /// <response code="200">QR code retrieved successfully.</response>
+        /// <response code="400">The QR code could not be retrieved.</response>
         /// <response code="401">Missing or invalid JWT token.</response>
         [HttpGet("{id:guid}/qr")]
         [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]

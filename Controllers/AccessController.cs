@@ -20,8 +20,8 @@ namespace Parkly_Backend.Controllers
             _accessService = accessService;
         }
 
-        /// <summary>Processes a physical gate scan using a QR code token.</summary>
-        /// <param name="dto">The scan details including QrToken,and ScanType.</param>
+        /// <summary>Processes a physical gate scan using a 6-digit QR / access code.</summary>
+        /// <param name="dto">The scan details including QrToken (6-digit code) and ScanType.</param>
         /// <returns>An <see cref="ApiResponse"/> indicating success or failure of the scan.</returns>
         /// <response code="200">Scan processed successfully.</response>
         /// <response code="400">Invalid scan request or state transition.</response>

@@ -5,12 +5,9 @@ using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
 using Parkly_Backend.Models.Enums;
 using Parkly_Backend.Models.Response;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using Parkly_Backend.Configuration;
 
 namespace Parkly_Backend.Services
@@ -21,16 +18,14 @@ namespace Parkly_Backend.Services
         private readonly IPricingService _pricingService;
         private readonly IAvailabilityService _availabilityService;
         private readonly IMapper _mapper;
-        private readonly JwtOptions _jwtOptions;
         private readonly ILogger<ReservationsService> _logger;
 
-        public ReservationsService(IUnitOfWork unitOfWork, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper, IOptions<JwtOptions> jwtOptions, ILogger<ReservationsService> logger)
+        public ReservationsService(IUnitOfWork unitOfWork, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper, ILogger<ReservationsService> logger, IOptions<JwtOptions>? jwtOptions = null)
         {
             _unitOfWork = unitOfWork;
             _pricingService = pricingService;
             _availabilityService = availabilityService;
             _mapper = mapper;
-            _jwtOptions = jwtOptions.Value;
             _logger = logger;
         }
 
@@ -61,6 +56,7 @@ namespace Parkly_Backend.Services
                 }
 
                 var totalPrice = await _pricingService.CalculateTotalPriceAsync(dto.SpaceId, dto.ArrivalTime, dto.DepartureTime);
+                var qrCode = await GenerateUniqueQrCodeAsync();
 
                 var reservation = new Reservation
                 {
@@ -69,7 +65,8 @@ namespace Parkly_Backend.Services
                     ArrivalTime = dto.ArrivalTime,
                     DepartureTime = dto.DepartureTime,
                     TotalPrice = totalPrice,
-                    Status = ReservationStatus.Confirmed
+                    Status = ReservationStatus.Confirmed,
+                    QrCode = qrCode
                 };
 
                 await _unitOfWork.Reservations.AddAsync(reservation);
@@ -190,26 +187,25 @@ namespace Parkly_Backend.Services
                 return ApiResponse<string>.Failure("Cannot generate QR code for a cancelled reservation.");
             }
 
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var keyString = _jwtOptions.SecretKey;
-            var key = Encoding.UTF8.GetBytes(keyString);
-
-            var tokenDescriptor = new SecurityTokenDescriptor
+            if (string.IsNullOrEmpty(reservation.QrCode))
             {
-                Subject = new ClaimsIdentity(new[] 
-                { 
-                    new Claim("ReservationId", reservationId.ToString())
-                }),
-                Expires = reservation.DepartureTime.AddHours(24),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
-                Issuer = _jwtOptions.Issuer,
-                Audience = _jwtOptions.Audience
-            };
+                reservation.QrCode = await GenerateUniqueQrCodeAsync();
+                _unitOfWork.Reservations.Update(reservation);
+                await _unitOfWork.SaveChangesAsync();
+            }
 
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-            var jwt = tokenHandler.WriteToken(token);
+            return ApiResponse<string>.Success("QR code generated successfully.", reservation.QrCode);
+        }
 
-            return ApiResponse<string>.Success("QR code generated successfully.", jwt);
+        private async Task<string> GenerateUniqueQrCodeAsync()
+        {
+            string code;
+            do
+            {
+                code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+            } while (await _unitOfWork.Reservations.IsQrCodeInUseAsync(code));
+
+            return code;
         }
 
         private async Task<ReservationResponseDTO> BuildResponseAsync(Guid reservationId)
