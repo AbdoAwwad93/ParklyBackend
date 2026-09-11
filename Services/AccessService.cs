@@ -89,5 +89,186 @@ namespace Parkly_Backend.Services
                 return ApiResponse.Failure("An error occurred while processing the scan.");
             }
         }
+
+        public async Task<ApiResponse<CheckInResponseDTO>> CheckInAsync(string qrToken)
+        {
+            if (string.IsNullOrWhiteSpace(qrToken))
+            {
+                return ApiResponse<CheckInResponseDTO>.Failure("QR code cannot be empty.");
+            }
+
+            var code = qrToken.Trim();
+
+            try
+            {
+                var reservation = await _unitOfWork.Reservations.GetByQrCodeWithIncludesAsync(code);
+
+                if (reservation == null)
+                {
+                    return ApiResponse<CheckInResponseDTO>.Failure("Invalid QR code or reservation not found.");
+                }
+
+                if (reservation.Status != ReservationStatus.Confirmed)
+                {
+                    _logger.LogWarning("Failed check-in. Reservation {ReservationId} status is {Status}", reservation.ReservationId, reservation.Status);
+                    return ApiResponse<CheckInResponseDTO>.Failure($"Cannot process Check-In. Current status: {reservation.Status}");
+                }
+
+                await _unitOfWork.BeginTransactionAsync();
+
+                reservation.Status = ReservationStatus.CheckedIn;
+                var entryTimestamp = DateTime.UtcNow;
+
+                var accessLog = new AccessLog
+                {
+                    ReservationId = reservation.ReservationId,
+                    ScanType = ScanType.Entry,
+                    ScanTimestamp = entryTimestamp
+                };
+
+                await _unitOfWork.AccessLogs.AddAsync(accessLog);
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
+
+                await _occupancyService.BroadcastOccupancyUpdateAsync(reservation.ParkingSpace.ParkingId);
+                _logger.LogInformation("Successfully checked in Reservation {ReservationId}", reservation.ReservationId);
+
+                var response = BuildCheckInResponse(reservation, entryTimestamp);
+                return ApiResponse<CheckInResponseDTO>.Success("Checked in successfully.", response);
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error processing check-in for QR code");
+                return ApiResponse<CheckInResponseDTO>.Failure("An error occurred while processing check-in.");
+            }
+        }
+
+        public async Task<ApiResponse<CheckOutResponseDTO>> CheckOutAsync(string qrToken)
+        {
+            if (string.IsNullOrWhiteSpace(qrToken))
+            {
+                return ApiResponse<CheckOutResponseDTO>.Failure("QR code cannot be empty.");
+            }
+
+            var code = qrToken.Trim();
+
+            try
+            {
+                var reservation = await _unitOfWork.Reservations.GetByQrCodeWithIncludesAsync(code);
+
+                if (reservation == null)
+                {
+                    return ApiResponse<CheckOutResponseDTO>.Failure("Invalid QR code or reservation not found.");
+                }
+
+                if (reservation.Status != ReservationStatus.CheckedIn)
+                {
+                    _logger.LogWarning("Failed check-out. Reservation {ReservationId} status is {Status}", reservation.ReservationId, reservation.Status);
+                    return ApiResponse<CheckOutResponseDTO>.Failure($"Cannot process Check-Out. Current status: {reservation.Status}");
+                }
+
+                await _unitOfWork.BeginTransactionAsync();
+
+                reservation.Status = ReservationStatus.Completed;
+                var exitTimestamp = DateTime.UtcNow;
+
+                var accessLog = new AccessLog
+                {
+                    ReservationId = reservation.ReservationId,
+                    ScanType = ScanType.Exit,
+                    ScanTimestamp = exitTimestamp
+                };
+
+                await _unitOfWork.AccessLogs.AddAsync(accessLog);
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
+
+                await _occupancyService.BroadcastOccupancyUpdateAsync(reservation.ParkingSpace.ParkingId);
+                _logger.LogInformation("Successfully checked out Reservation {ReservationId}", reservation.ReservationId);
+
+                var response = BuildCheckOutResponse(reservation, exitTimestamp);
+                return ApiResponse<CheckOutResponseDTO>.Success("Checked out successfully.", response);
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error processing check-out for QR code");
+                return ApiResponse<CheckOutResponseDTO>.Failure("An error occurred while processing check-out.");
+            }
+        }
+
+        private static CheckInResponseDTO BuildCheckInResponse(Reservation reservation, DateTime checkInTime)
+        {
+            var durationHours = Math.Round((reservation.DepartureTime - reservation.ArrivalTime).TotalHours, 1);
+
+            return new CheckInResponseDTO
+            {
+                ReservationId = reservation.ReservationId,
+                ParkingId = reservation.ParkingSpace.ParkingId,
+                ParkingName = reservation.ParkingSpace.Parking.Name,
+                ParkingAddress = reservation.ParkingSpace.Parking.Address,
+                SpaceId = reservation.SpaceId,
+                SpotNumber = reservation.ParkingSpace.SpotNumber,
+                Status = "CheckedIn",
+                CheckInTime = checkInTime,
+                ScheduledArrivalTime = reservation.ArrivalTime,
+                ScheduledDepartureTime = reservation.DepartureTime,
+                TotalHours = durationHours,
+                TotalPrice = reservation.TotalPrice,
+                QrCode = reservation.QrCode
+            };
+        }
+
+        private static CheckOutResponseDTO BuildCheckOutResponse(Reservation reservation, DateTime exitTime)
+        {
+            var entryLog = reservation.AccessLogs
+                .Where(l => l.ScanType == ScanType.Entry)
+                .OrderByDescending(l => l.ScanTimestamp)
+                .FirstOrDefault();
+
+            var checkInTime = entryLog?.ScanTimestamp ?? reservation.ArrivalTime;
+            var duration = exitTime - checkInTime;
+            if (duration < TimeSpan.Zero)
+            {
+                duration = TimeSpan.Zero;
+            }
+
+            var hourlyRate = reservation.ParkingSpace.BaseHourlyRate;
+            var durationCost = Math.Round((decimal)duration.TotalHours * hourlyRate, 2);
+            var serviceFee = 0.75m;
+            var totalAmount = durationCost + serviceFee;
+
+            return new CheckOutResponseDTO
+            {
+                ReservationId = reservation.ReservationId,
+                ParkingId = reservation.ParkingSpace.ParkingId,
+                ParkingName = reservation.ParkingSpace.Parking.Name,
+                ParkingAddress = reservation.ParkingSpace.Parking.Address,
+                SpotNumber = reservation.ParkingSpace.SpotNumber,
+                Status = "Completed",
+                DateFormatted = exitTime.ToString("ddd, MMM dd, yyyy"),
+                CheckInTime = checkInTime,
+                CheckOutTime = exitTime,
+                DurationFormatted = FormatDuration(duration),
+                TotalMinutes = Math.Round(duration.TotalMinutes, 1),
+                HourlyRate = hourlyRate,
+                DurationCost = durationCost,
+                ServiceFee = serviceFee,
+                TotalAmount = totalAmount,
+                UserEmail = reservation.User?.Email ?? string.Empty
+            };
+        }
+
+        private static string FormatDuration(TimeSpan duration)
+        {
+            var hours = (int)duration.TotalHours;
+            var minutes = duration.Minutes;
+            if (hours > 0)
+            {
+                return $"{hours} hr{(hours > 1 ? "s" : "")} {minutes} min";
+            }
+            return $"{minutes} min";
+        }
     }
 }

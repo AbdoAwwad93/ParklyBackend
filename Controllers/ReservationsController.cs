@@ -43,6 +43,50 @@ namespace Parkly_Backend.Controllers
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 
+        /// <summary>Retrieves a single reservation by id for the authenticated user.</summary>
+        /// <param name="id">The id of the reservation.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the reservation details.</returns>
+        /// <response code="200">Reservation retrieved successfully.</response>
+        /// <response code="404">Reservation not found or unauthorized.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        [HttpGet("{id:guid}")]
+        [ProducesResponseType(typeof(ApiResponse<ReservationResponseDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetById(Guid id)
+        {
+            var userId = User.GetRequiredUserId();
+            var result = await _service.GetByIdAsync(userId, id);
+            return result.IsSuccess ? Ok(result) : NotFound(result);
+        }
+
+        /// <summary>Generates a real-time checkout preview with duration and cost breakdown for an active checked-in reservation.</summary>
+        /// <param name="id">The id of the reservation.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the checkout cost preview.</returns>
+        /// <response code="200">Checkout preview generated successfully.</response>
+        /// <response code="400">Reservation is not currently checked in.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="404">Reservation not found.</response>
+        [HttpGet("{id:guid}/checkout-preview")]
+        [ProducesResponseType(typeof(ApiResponse<CheckOutResponseDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetCheckoutPreview(Guid id)
+        {
+            var userId = User.GetRequiredUserId();
+            var result = await _service.GetCheckoutPreviewAsync(userId, id);
+            if (!result.IsSuccess)
+            {
+                if (result.Message == "Reservation not found.")
+                {
+                    return NotFound(result);
+                }
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
         /// <summary>Updates the times of an existing reservation belonging to the authenticated user.</summary>
         /// <param name="id">The id of the reservation to update.</param>
         /// <param name="dto">The new arrival and departure times.</param>

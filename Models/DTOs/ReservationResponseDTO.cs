@@ -13,12 +13,20 @@ namespace Parkly_Backend.Models.DTOs
         public Guid SpaceId { get; set; }
         /// <summary>The id of the parking facility.</summary>
         public Guid ParkingId { get; set; }
+        /// <summary>The name of the parking facility.</summary>
+        public string ParkingName { get; set; } = string.Empty;
+        /// <summary>The address of the parking facility.</summary>
+        public string ParkingAddress { get; set; } = string.Empty;
         /// <summary>The spot number assigned within the parking.</summary>
         public string? SpotNumber { get; set; }
-        /// <summary>The arrival time.</summary>
+        /// <summary>The base hourly rate for the reserved space.</summary>
+        public decimal? HourlyRate { get; set; }
+        /// <summary>The scheduled arrival time.</summary>
         public DateTime ArrivalTime { get; set; }
-        /// <summary>The departure time.</summary>
+        /// <summary>The scheduled departure time.</summary>
         public DateTime DepartureTime { get; set; }
+        /// <summary>The actual timestamp when the user checked in (UTC), if checked in.</summary>
+        public DateTime? CheckInTime { get; set; }
         /// <summary>The calculated total price.</summary>
         public decimal TotalPrice { get; set; }
         /// <summary>The current status of the reservation.</summary>

@@ -1,6 +1,7 @@
 using AutoMapper;
 using Parkly_Backend.Models;
 using Parkly_Backend.Models.DTOs;
+using Parkly_Backend.Models.Enums;
 
 namespace Parkly_Backend.Mappings
 {
@@ -30,7 +31,15 @@ namespace Parkly_Backend.Mappings
 
             CreateMap<Reservation, ReservationResponseDTO>()
                 .ForMember(dest => dest.ParkingId, opt => opt.MapFrom(src => src.ParkingSpace.ParkingId))
-                .ForMember(dest => dest.SpotNumber, opt => opt.MapFrom(src => src.ParkingSpace.SpotNumber));
+                .ForMember(dest => dest.SpotNumber, opt => opt.MapFrom(src => src.ParkingSpace.SpotNumber))
+                .ForMember(dest => dest.ParkingName, opt => opt.MapFrom(src => src.ParkingSpace.Parking.Name))
+                .ForMember(dest => dest.ParkingAddress, opt => opt.MapFrom(src => src.ParkingSpace.Parking.Address))
+                .ForMember(dest => dest.HourlyRate, opt => opt.MapFrom(src => src.ParkingSpace.BaseHourlyRate))
+                .ForMember(dest => dest.CheckInTime, opt => opt.MapFrom(src => src.AccessLogs
+                    .Where(l => l.ScanType == ScanType.Entry)
+                    .OrderByDescending(l => l.ScanTimestamp)
+                    .Select(l => (DateTime?)l.ScanTimestamp)
+                    .FirstOrDefault()));
             CreateMap<Parking, ParkingDTO>().ReverseMap();
             CreateMap<Parking, ParkingResponseDTO>()
                 .ForMember(dest => dest.Features, opt => opt.MapFrom(src => src.Features.Select(f => f.ToString()).ToList()));

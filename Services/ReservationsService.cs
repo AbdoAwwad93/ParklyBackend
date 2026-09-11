@@ -223,6 +223,93 @@ namespace Parkly_Backend.Services
             return ApiResponse<List<ReservationResponseDTO>>.Success("Reservations retrieved successfully.", response);
         }
 
+        public async Task<ApiResponse<ReservationResponseDTO>> GetByIdAsync(Guid userId, Guid reservationId)
+        {
+            var reservation = await _unitOfWork.Reservations.GetReservationWithIncludesAsync(reservationId);
+            if (reservation == null)
+            {
+                return ApiResponse<ReservationResponseDTO>.Failure("Reservation not found.");
+            }
+
+            if (reservation.UserId != userId)
+            {
+                return ApiResponse<ReservationResponseDTO>.Failure("You do not have permission to view this reservation.");
+            }
+
+            var response = _mapper.Map<ReservationResponseDTO>(reservation);
+            return ApiResponse<ReservationResponseDTO>.Success("Reservation retrieved successfully.", response);
+        }
+
+        public async Task<ApiResponse<CheckOutResponseDTO>> GetCheckoutPreviewAsync(Guid userId, Guid reservationId)
+        {
+            var reservation = await _unitOfWork.Reservations.GetReservationWithIncludesAsync(reservationId);
+            if (reservation == null)
+            {
+                return ApiResponse<CheckOutResponseDTO>.Failure("Reservation not found.");
+            }
+
+            if (reservation.UserId != userId)
+            {
+                return ApiResponse<CheckOutResponseDTO>.Failure("You do not have permission to view this reservation.");
+            }
+
+            if (reservation.Status != ReservationStatus.CheckedIn)
+            {
+                return ApiResponse<CheckOutResponseDTO>.Failure("Only active checked-in reservations can be previewed for checkout.");
+            }
+
+            var entryLog = reservation.AccessLogs
+                .Where(l => l.ScanType == ScanType.Entry)
+                .OrderByDescending(l => l.ScanTimestamp)
+                .FirstOrDefault();
+
+            var checkInTime = entryLog?.ScanTimestamp ?? reservation.ArrivalTime;
+            var checkOutTime = DateTime.UtcNow;
+            var duration = checkOutTime - checkInTime;
+            if (duration < TimeSpan.Zero)
+            {
+                duration = TimeSpan.Zero;
+            }
+
+            var hourlyRate = reservation.ParkingSpace.BaseHourlyRate;
+            var durationCost = Math.Round((decimal)duration.TotalHours * hourlyRate, 2);
+            var serviceFee = 0.75m;
+            var totalAmount = durationCost + serviceFee;
+
+            var preview = new CheckOutResponseDTO
+            {
+                ReservationId = reservation.ReservationId,
+                ParkingId = reservation.ParkingSpace.ParkingId,
+                ParkingName = reservation.ParkingSpace.Parking.Name,
+                ParkingAddress = reservation.ParkingSpace.Parking.Address,
+                SpotNumber = reservation.ParkingSpace.SpotNumber,
+                Status = "Completed",
+                DateFormatted = checkOutTime.ToString("ddd, MMM dd, yyyy"),
+                CheckInTime = checkInTime,
+                CheckOutTime = checkOutTime,
+                DurationFormatted = FormatDuration(duration),
+                TotalMinutes = Math.Round(duration.TotalMinutes, 1),
+                HourlyRate = hourlyRate,
+                DurationCost = durationCost,
+                ServiceFee = serviceFee,
+                TotalAmount = totalAmount,
+                UserEmail = reservation.User?.Email ?? string.Empty
+            };
+
+            return ApiResponse<CheckOutResponseDTO>.Success("Checkout preview generated successfully.", preview);
+        }
+
+        private static string FormatDuration(TimeSpan duration)
+        {
+            var hours = (int)duration.TotalHours;
+            var minutes = duration.Minutes;
+            if (hours > 0)
+            {
+                return $"{hours} hr{(hours > 1 ? "s" : "")} {minutes} min";
+            }
+            return $"{minutes} min";
+        }
+
         public async Task<ApiResponse<List<ReservationResponseDTO>>> GetActiveUserReservationsAsync(Guid userId)
         {
             var reservations = await _unitOfWork.Reservations.GetActiveReservationsByUserAsync(userId);

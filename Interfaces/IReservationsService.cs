@@ -10,6 +10,8 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse<ReservationResponseDTO>> UpdateAsync(Guid userId, Guid reservationId, UpdateReservationDTO dto);
         Task<ApiResponse> CancelAsync(Guid userId, Guid reservationId);
         Task<ApiResponse<string>> GetQrCodeAsync(Guid userId, Guid reservationId);
+        Task<ApiResponse<ReservationResponseDTO>> GetByIdAsync(Guid userId, Guid reservationId);
+        Task<ApiResponse<CheckOutResponseDTO>> GetCheckoutPreviewAsync(Guid userId, Guid reservationId);
         Task<ApiResponse<List<ReservationResponseDTO>>> GetUserReservationsAsync(Guid userId);
         Task<ApiResponse<List<ReservationResponseDTO>>> GetActiveUserReservationsAsync(Guid userId);
     }

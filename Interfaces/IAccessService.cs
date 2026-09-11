@@ -7,5 +7,7 @@ namespace Parkly_Backend.Interfaces
     public interface IAccessService
     {
         Task<ApiResponse> ProcessScanAsync(AccessScanDTO dto);
+        Task<ApiResponse<CheckInResponseDTO>> CheckInAsync(string qrToken);
+        Task<ApiResponse<CheckOutResponseDTO>> CheckOutAsync(string qrToken);
     }
 }
