@@ -46,5 +46,8 @@ namespace Parkly_Backend.Models.DTOs
 
         /// <summary>The average user rating of the parking facility.</summary>
         public double AverageRating { get; set; }
+
+        /// <summary>Total number of reviews submitted for this parking facility.</summary>
+        public int TotalReviews { get; set; }
     }
 }

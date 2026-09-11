@@ -148,11 +148,15 @@ namespace Parkly_Backend.Services
                     Latitude = parking.Latitude,
                     Longitude = parking.Longitude,
                     OperatingHours = parking.OperatingHours,
+                    IsOpenNow = GeoHelper.IsOpenAt(parking.OperatingHours, DateTime.UtcNow),
                     DistanceKm = query.Latitude.HasValue && query.Longitude.HasValue
                         ? GeoHelper.DistanceKm(parking.Latitude, parking.Longitude, query.Latitude.Value, query.Longitude.Value)
                         : null,
                     AvailableSpaces = availableSpaces.Count,
+                    TotalSpaces = activeSpaces.Count,
                     MinHourlyRate = activeSpaces.Count > 0 ? activeSpaces.Min(s => s.BaseHourlyRate) : null,
+                    AverageRating = parking.AverageRating,
+                    TotalReviews = parking.TotalReviews,
                     Features = parking.Features.Select(f => f.ToString()).ToList()
                 });
             }
@@ -265,7 +269,8 @@ namespace Parkly_Backend.Services
                     TotalSpaces = activeSpaces.Count,
                     MinHourlyRate = minRate,
                     Features = parking.Features.Select(f => f.ToString()).ToList(),
-                    AverageRating = parking.AverageRating
+                    AverageRating = parking.AverageRating,
+                    TotalReviews = parking.TotalReviews
                 });
             }
 
