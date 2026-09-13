@@ -24,6 +24,21 @@ namespace Parkly_Backend.Models.DTOs
         /// <summary>The operating hours of the parking facility.</summary>
         public string? OperatingHours { get; set; }
 
+        /// <summary>Indicates whether the facility is currently open based on operating hours.</summary>
+        public bool IsOpenNow { get; set; }
+
+        /// <summary>Distance from the query coordinates in kilometers, if coordinates were provided.</summary>
+        public double? DistanceKm { get; set; }
+
+        /// <summary>Number of spaces available in the requested (or default) time window.</summary>
+        public int AvailableSpaces { get; set; }
+
+        /// <summary>Total active spaces configured in the facility.</summary>
+        public int TotalSpaces { get; set; }
+
+        /// <summary>The lowest base hourly rate among active or available spaces.</summary>
+        public decimal? MinHourlyRate { get; set; }
+
         /// <summary>List of amenities or features available at the parking facility.</summary>
         public List<string> Features { get; set; } = new List<string>();
 
@@ -32,5 +47,8 @@ namespace Parkly_Backend.Models.DTOs
 
         /// <summary>The total number of reviews for the parking facility.</summary>
         public int TotalReviews { get; set; }
+
+        /// <summary>Optional recommendation reason if returned from a personalized recommendation query.</summary>
+        public string? RecommendationReason { get; set; }
     }
 }

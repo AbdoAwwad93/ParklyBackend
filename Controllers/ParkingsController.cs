@@ -42,6 +42,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="200">Parking retrieved successfully.</response>
         /// <response code="404">Parking not found.</response>
         [HttpGet("{id:guid}")]
+        [AllowAnonymous]
         [ProducesResponseType(typeof(ApiResponse<ParkingResponseDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetById(Guid id)

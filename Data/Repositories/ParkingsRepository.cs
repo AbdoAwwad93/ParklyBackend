@@ -41,5 +41,12 @@ namespace Parkly_Backend.Data.Repositories
 
             return await query.ToListAsync();
         }
+
+        public async Task<Parking?> GetByIdWithSpacesAsync(Guid id)
+        {
+            return await _dbSet
+                .Include(p => p.ParkingSpaces)
+                .FirstOrDefaultAsync(p => p.ParkingId == id);
+        }
     }
 }

@@ -10,5 +10,6 @@ namespace Parkly_Backend.Interfaces.Repositories
     {
         Task<List<Parking>> GetParkingsWithSpacesAsync();
         Task<List<Parking>> GetCandidateParkingsInBoundingBoxAsync(decimal minLat, decimal maxLat, decimal minLng, decimal maxLng, string? vehicleSize = null, decimal? maxRate = null);
+        Task<Parking?> GetByIdWithSpacesAsync(Guid id);
     }
 }
