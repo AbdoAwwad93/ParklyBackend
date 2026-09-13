@@ -69,8 +69,7 @@ namespace Parkly_Backend.Services
                 MinHourlyRate = minRate,
                 AverageRating = parking.AverageRating,
                 TotalReviews = parking.TotalReviews,
-                Features = parking.Features.Select(f => f.ToString()).ToList(),
-                RecommendationReason = null
+                Features = parking.Features.Select(f => f.ToString()).ToList()
             };
 
             return ApiResponse<ParkingResponseDTO>.Success("Parking retrieved successfully.", response);

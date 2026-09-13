@@ -47,8 +47,5 @@ namespace Parkly_Backend.Models.DTOs
 
         /// <summary>The total number of reviews for the parking facility.</summary>
         public int TotalReviews { get; set; }
-
-        /// <summary>Optional recommendation reason if returned from a personalized recommendation query.</summary>
-        public string? RecommendationReason { get; set; }
     }
 }
