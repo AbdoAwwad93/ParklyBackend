@@ -21,8 +21,8 @@ namespace Parkly_Backend.Models.DTOs
         /// <summary>The longitude coordinate of the parking facility.</summary>
         public decimal Longitude { get; set; }
 
-        /// <summary>The operating hours of the parking facility.</summary>
-        public string? OperatingHours { get; set; }
+        /// <summary>The operating hours of the parking facility broken down by days and hours.</summary>
+        public List<OperatingHoursDTO> OperatingHours { get; set; } = new List<OperatingHoursDTO>();
 
         /// <summary>Indicates whether the facility is currently open based on operating hours.</summary>
         public bool IsOpenNow { get; set; }

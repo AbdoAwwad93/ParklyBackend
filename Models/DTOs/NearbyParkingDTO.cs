@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Parkly_Backend.Models.DTOs
 {
@@ -23,8 +24,8 @@ namespace Parkly_Backend.Models.DTOs
         /// <summary>The longitude coordinate of the facility.</summary>
         public decimal Longitude { get; set; }
 
-        /// <summary>The operating hours of the facility (e.g. "08:00 - 22:00").</summary>
-        public string? OperatingHours { get; set; }
+        /// <summary>The operating hours of the facility broken down by days and hours.</summary>
+        public List<OperatingHoursDTO> OperatingHours { get; set; } = new List<OperatingHoursDTO>();
 
         /// <summary>Indicates whether the facility is currently open based on operating hours.</summary>
         public bool IsOpenNow { get; set; }

@@ -41,17 +41,27 @@ namespace Parkly_Backend.Mappings
                     .OrderByDescending(l => l.ScanTimestamp)
                     .Select(l => (DateTime?)l.ScanTimestamp)
                     .FirstOrDefault()));
-            CreateMap<Parking, ParkingDTO>().ReverseMap();
+            CreateMap<Parking, ParkingDTO>()
+                .ForMember(dest => dest.OperatingHours, opt => opt.MapFrom(src => GeoHelper.ToOperatingHoursDTOs(src.OperatingHours)))
+                .ReverseMap()
+                .ForMember(dest => dest.OperatingHours, opt => opt.MapFrom(src => GeoHelper.FormatOperatingHoursFromDTOs(src.OperatingHours)));
             CreateMap<Parking, ParkingResponseDTO>()
                 .ForMember(dest => dest.Features, opt => opt.MapFrom(src => src.Features.Select(f => f.ToString()).ToList()))
+                .ForMember(dest => dest.OperatingHours, opt => opt.MapFrom(src => GeoHelper.ToOperatingHoursDTOs(src.OperatingHours)))
                 .ForMember(dest => dest.IsOpenNow, opt => opt.MapFrom(src => GeoHelper.IsOpenAt(src.OperatingHours, DateTime.UtcNow)))
                 .ForMember(dest => dest.TotalSpaces, opt => opt.MapFrom(src => src.ParkingSpaces != null ? src.ParkingSpaces.Count(s => s.IsActive) : 0))
                 .ForMember(dest => dest.MinHourlyRate, opt => opt.MapFrom(src => src.ParkingSpaces != null && src.ParkingSpaces.Any(s => s.IsActive) ? src.ParkingSpaces.Where(s => s.IsActive).Min(s => (decimal?)s.BaseHourlyRate) : null))
                 .ForMember(dest => dest.AvailableSpaces, opt => opt.Ignore())
                 .ForMember(dest => dest.DistanceKm, opt => opt.Ignore())
                 .ForMember(dest => dest.RecommendationReason, opt => opt.Ignore());
-            CreateMap<CreateParkingDTO, Parking>();
-            CreateMap<UpdateParkingDTO, Parking>();
+            CreateMap<CreateParkingDTO, Parking>()
+                .ForMember(dest => dest.OperatingHours, opt => opt.MapFrom(src => GeoHelper.FormatOperatingHoursFromDTOs(src.OperatingHours)));
+            CreateMap<UpdateParkingDTO, Parking>()
+                .ForMember(dest => dest.OperatingHours, opt =>
+                {
+                    opt.PreCondition(src => src.OperatingHours != null);
+                    opt.MapFrom(src => GeoHelper.FormatOperatingHoursFromDTOs(src.OperatingHours));
+                });
             CreateMap<CreateParkingSpaceDTO, ParkingSpace>();
             CreateMap<UpdateParkingSpaceDTO, ParkingSpace>();
             CreateMap<ParkingSpace, ParkingSpaceResponseDTO>()

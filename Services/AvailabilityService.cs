@@ -1,3 +1,4 @@
+using Parkly_Backend.Common.Helpers;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
@@ -119,40 +120,7 @@ namespace Parkly_Backend.Services
 
         private static bool OutsideOperatingHours(string? operatingHours, DateTime arrival, DateTime departure)
         {
-            var (open, close) = ParseOperatingHours(operatingHours);
-            if (open == null || close == null)
-            {
-                return false;
-            }
-
-            return arrival.TimeOfDay < open.Value.ToTimeSpan()
-                || departure.TimeOfDay > close.Value.ToTimeSpan();
-        }
-
-        private static (TimeOnly? Open, TimeOnly? Close) ParseOperatingHours(string? operatingHours)
-        {
-            if (string.IsNullOrWhiteSpace(operatingHours))
-            {
-                return (null, null);
-            }
-
-            var parts = operatingHours.Split('-', StringSplitOptions.TrimEntries);
-            if (parts.Length != 2)
-            {
-                return (null, null);
-            }
-
-            if (!TimeOnly.TryParseExact(parts[0], "HH\\:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var open))
-            {
-                return (null, null);
-            }
-
-            if (!TimeOnly.TryParseExact(parts[1], "HH\\:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var close))
-            {
-                return (null, null);
-            }
-
-            return (open, close);
+            return !GeoHelper.IsWindowWithinOperatingHours(operatingHours, arrival, departure);
         }
     }
 }

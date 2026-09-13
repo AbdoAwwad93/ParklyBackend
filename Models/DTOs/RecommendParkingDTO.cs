@@ -11,7 +11,7 @@ namespace Parkly_Backend.Models.DTOs
         public string Address { get; set; } = string.Empty;
         public decimal Latitude { get; set; }
         public decimal Longitude { get; set; }
-        public string? OperatingHours { get; set; }
+        public List<OperatingHoursDTO> OperatingHours { get; set; } = new List<OperatingHoursDTO>();
         public bool IsOpenNow { get; set; }
         public double? DistanceKm { get; set; }
         public int AvailableSpaces { get; set; }

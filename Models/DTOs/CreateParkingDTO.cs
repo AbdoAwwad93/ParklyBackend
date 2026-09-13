@@ -21,9 +21,8 @@ namespace Parkly_Backend.Models.DTOs
         /// <summary>The longitude coordinate of the parking facility.</summary>
         public decimal Longitude { get; set; }
 
-        /// <summary>The operating hours of the parking facility (e.g. "06:00 - 22:00").</summary>
-        [MaxLength(100, ErrorMessage = "Operating hours cannot exceed 100 characters.")]
-        public string? OperatingHours { get; set; }
+        /// <summary>The operating hours of the parking facility broken down by days and hours.</summary>
+        public List<OperatingHoursDTO> OperatingHours { get; set; } = new List<OperatingHoursDTO>();
 
         /// <summary>List of amenities or features available at the parking facility.</summary>
         public List<ParkingFeature> Features { get; set; } = new List<ParkingFeature>();
