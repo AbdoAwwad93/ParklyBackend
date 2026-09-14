@@ -24,7 +24,7 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<List<ParkingResponseDTO>>> GetAllAsync()
         {
-            var parkings = await _unitOfWork.Parkings.GetAllAsync();
+            var parkings = await _unitOfWork.Parkings.GetParkingsWithSpacesAsync();
             var response = _mapper.Map<List<ParkingResponseDTO>>(parkings);
             return ApiResponse<List<ParkingResponseDTO>>.Success("Parkings retrieved successfully.", response);
         }
@@ -37,41 +37,7 @@ namespace Parkly_Backend.Services
                 return ApiResponse<ParkingResponseDTO>.Failure("Parking not found.");
             }
 
-            var arrival = DateTime.UtcNow;
-            var departure = arrival.AddHours(1);
-
-            var availableSpaces = await _availabilityService.GetAvailableSpacesAsync(parking.ParkingId, arrival, departure);
-            var activeSpaces = parking.ParkingSpaces.Where(s => s.IsActive).ToList();
-
-            decimal? minRate = null;
-            if (availableSpaces.Count > 0)
-            {
-                minRate = availableSpaces.Min(s => s.BaseHourlyRate);
-            }
-            else if (activeSpaces.Count > 0)
-            {
-                minRate = activeSpaces.Min(s => s.BaseHourlyRate);
-            }
-
-            var response = new ParkingResponseDTO
-            {
-                ParkingId = parking.ParkingId,
-                OwnerId = parking.OwnerId,
-                Name = parking.Name,
-                Address = parking.Address,
-                Latitude = parking.Latitude,
-                Longitude = parking.Longitude,
-                OperatingHours = GeoHelper.ToOperatingHoursDTOs(parking.OperatingHours),
-                IsOpenNow = GeoHelper.IsOpenAt(parking.OperatingHours, DateTime.UtcNow),
-                DistanceKm = null,
-                AvailableSpaces = availableSpaces.Count,
-                TotalSpaces = activeSpaces.Count,
-                MinHourlyRate = minRate,
-                AverageRating = parking.AverageRating,
-                TotalReviews = parking.TotalReviews,
-                Features = parking.Features.Select(f => f.ToString()).ToList()
-            };
-
+            var response = _mapper.Map<ParkingResponseDTO>(parking);
             return ApiResponse<ParkingResponseDTO>.Success("Parking retrieved successfully.", response);
         }
 

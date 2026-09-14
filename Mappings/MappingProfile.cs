@@ -51,7 +51,7 @@ namespace Parkly_Backend.Mappings
                 .ForMember(dest => dest.IsOpenNow, opt => opt.MapFrom(src => GeoHelper.IsOpenAt(src.OperatingHours, DateTime.UtcNow)))
                 .ForMember(dest => dest.TotalSpaces, opt => opt.MapFrom(src => src.ParkingSpaces != null ? src.ParkingSpaces.Count(s => s.IsActive) : 0))
                 .ForMember(dest => dest.MinHourlyRate, opt => opt.MapFrom(src => src.ParkingSpaces != null && src.ParkingSpaces.Any(s => s.IsActive) ? src.ParkingSpaces.Where(s => s.IsActive).Min(s => (decimal?)s.BaseHourlyRate) : null))
-                .ForMember(dest => dest.AvailableSpaces, opt => opt.Ignore())
+                .ForMember(dest => dest.AvailableSpaces, opt => opt.MapFrom(src => src.ParkingSpaces != null ? src.ParkingSpaces.Count(s => s.IsActive) : 0))
                 .ForMember(dest => dest.DistanceKm, opt => opt.Ignore());
             CreateMap<CreateParkingDTO, Parking>()
                 .ForMember(dest => dest.OperatingHours, opt => opt.MapFrom(src => GeoHelper.FormatOperatingHoursFromDTOs(src.OperatingHours)));
