@@ -15,6 +15,10 @@ namespace Parkly_Backend.Models.DTOs
         [Range(-180.0, 180.0, ErrorMessage = "Longitude must be between -180 and 180.")]
         public decimal? Longitude { get; set; }
 
+        /// <summary>Maximum recommendation radius in kilometers around user coordinates (optional, 0.1 to 100 km).</summary>
+        [Range(0.1, 100.0, ErrorMessage = "RadiusKm must be between 0.1 and 100 km.")]
+        public double? RadiusKm { get; set; }
+
         /// <summary>Optional filter to only include spaces that support this vehicle size.</summary>
         public VehicleSize? VehicleSize { get; set; }
 

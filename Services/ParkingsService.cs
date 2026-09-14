@@ -294,8 +294,21 @@ namespace Parkly_Backend.Services
                 .GroupBy(r => r.ParkingSpace.ParkingId)
                 .ToDictionary(g => g.Key, g => g.Count());
 
+            if (query.RadiusKm.HasValue && (!query.Latitude.HasValue || !query.Longitude.HasValue))
+            {
+                return ApiResponse<List<RecommendParkingDTO>>.Failure("Latitude and Longitude are required when specifying a recommendation radius.");
+            }
+
             var parkings = await _unitOfWork.Parkings.GetParkingsWithSpacesAsync();
             var activeParkings = parkings.Where(p => p.ParkingSpaces.Any(s => s.IsActive)).ToList();
+
+            if (query.RadiusKm.HasValue && query.Latitude.HasValue && query.Longitude.HasValue)
+            {
+                var maxRadius = query.RadiusKm.Value;
+                activeParkings = activeParkings
+                    .Where(p => GeoHelper.DistanceKm(p.Latitude, p.Longitude, query.Latitude.Value, query.Longitude.Value) <= maxRadius)
+                    .ToList();
+            }
 
             var arrival = query.Arrival ?? DateTime.UtcNow;
             var departure = query.Departure ?? arrival.AddHours(1);
