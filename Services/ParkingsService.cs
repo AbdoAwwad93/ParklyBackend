@@ -48,6 +48,77 @@ namespace Parkly_Backend.Services
             return ApiResponse<ParkingResponseDTO>.Success("Parking retrieved successfully.", response);
         }
 
+        public async Task<ApiResponse<LocationDetailsDTO>> GetDetailsAsync(Guid ownerId, Guid id)
+        {
+            var parking = await _unitOfWork.Parkings.GetByIdWithSpacesAsync(id);
+            if (parking == null)
+            {
+                return ApiResponse<LocationDetailsDTO>.Failure("Parking not found.");
+            }
+            if (parking.OwnerId != ownerId)
+            {
+                return ApiResponse<LocationDetailsDTO>.Failure("You do not have permission to view this parking.");
+            }
+
+            var activeSpaces = parking.ParkingSpaces.Where(s => s.IsActive).ToList();
+            var total = activeSpaces.Count;
+
+            var now = DateTime.UtcNow;
+            var occupied = await _unitOfWork.Reservations.GetCheckedInCountForParkingAsync(id);
+            var reserved = await _unitOfWork.Reservations.GetReservedCountForParkingAsync(id, now);
+            occupied = Math.Min(occupied, total);
+            reserved = Math.Min(reserved, Math.Max(0, total - occupied));
+            var available = Math.Max(0, total - occupied - reserved);
+
+            var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var monthEnd = monthStart.AddMonths(1);
+            var monthRevenue = await _unitOfWork.Reservations.GetParkingMonthRevenueAsync(id, monthStart, monthEnd);
+
+            var basePrice = activeSpaces.Count > 0 ? activeSpaces.Min(s => (decimal?)s.BaseHourlyRate) : null;
+            var isActive = total > 0;
+            var isOpenNow = GeoHelper.IsOpenAt(parking.OperatingHours, now);
+            var statusText = !isActive ? "Inactive" : !isOpenNow ? "Closed" : "Active & Accepting Bookings";
+
+            var dto = new LocationDetailsDTO
+            {
+                ParkingId = parking.ParkingId,
+                Name = parking.Name,
+                Address = parking.Address,
+                City = ExtractCity(parking.Address),
+                TotalSpaces = total,
+                AvailableSpaces = available,
+                OccupiedSpaces = occupied,
+                ReservedSpaces = reserved,
+                BasePrice = basePrice,
+                AverageRating = parking.AverageRating,
+                TotalReviews = parking.TotalReviews,
+                ThisMonthRevenue = monthRevenue,
+                IsActive = isActive,
+                IsOpenNow = isOpenNow,
+                StatusText = statusText,
+                OperatingHours = GeoHelper.ToOperatingHoursDTOs(parking.OperatingHours),
+                Features = parking.Features.Select(f => f.ToString()).ToList()
+            };
+
+            return ApiResponse<LocationDetailsDTO>.Success("Location details retrieved successfully.", dto);
+        }
+
+        private static string ExtractCity(string address)
+        {
+            if (string.IsNullOrWhiteSpace(address))
+            {
+                return string.Empty;
+            }
+
+            var parts = address.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length >= 2)
+            {
+                return string.Join(", ", parts.Skip(parts.Length - 2));
+            }
+
+            return address.Trim();
+        }
+
         public async Task<ApiResponse<ParkingResponseDTO>> CreateAsync(Guid ownerId, CreateParkingDTO dto)
         {
             var parkingOwner = await _unitOfWork.ParkingOwners.FirstOrDefaultAsync(o => o.OwnerId == ownerId);

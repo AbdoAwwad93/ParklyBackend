@@ -228,5 +228,38 @@ namespace Parkly_Backend.Services
 
             return ApiResponse<List<NearbyParkingSpaceDTO>>.Success("Nearby parking spaces retrieved successfully.", pagedResults);
         }
+        /// <summary>
+        /// Recomputes Space.Status from live reservations.
+        /// CheckedIn => Occupied, Confirmed overlapping now => Reserved, else Available.
+        /// Must be called inside an active transaction; caller commits.
+        /// </summary>
+        public async Task RefreshSpaceStatusAsync(Guid spaceId)
+        {
+            var now = DateTime.UtcNow;
+
+            var hasCheckedIn = await _unitOfWork.Reservations.AnyAsync(r =>
+                r.SpaceId == spaceId && r.Status == ReservationStatus.CheckedIn);
+
+            SpaceStatus nextStatus;
+            if (hasCheckedIn)
+            {
+                nextStatus = SpaceStatus.Occupied;
+            }
+            else
+            {
+                var hasConfirmedNow = await _unitOfWork.Reservations.AnyAsync(r =>
+                    r.SpaceId == spaceId
+                    && r.Status == ReservationStatus.Confirmed
+                    && r.ArrivalTime <= now
+                    && r.DepartureTime > now);
+                nextStatus = hasConfirmedNow ? SpaceStatus.Reserved : SpaceStatus.Available;
+            }
+
+            var space = await _unitOfWork.ParkingSpaces.GetByIdAsync(spaceId);
+            if (space != null && space.Status != nextStatus)
+            {
+                space.Status = nextStatus;
+            }
+        }
     }
 }

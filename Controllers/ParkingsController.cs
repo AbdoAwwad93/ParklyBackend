@@ -68,6 +68,26 @@ namespace Parkly_Backend.Controllers
             return result.IsSuccess ? Ok(result) : NotFound(result);
         }
 
+        /// <summary>Returns aggregated details for a single parking location owned by the authenticated parking owner (Location Details modal).</summary>
+        /// <param name="id">The id of the parking facility.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing total/available/occupied/reserved counts, base price, rating, monthly revenue and status.</returns>
+        /// <response code="200">Location details retrieved successfully.</response>
+        /// <response code="400">Parking not found or no permission.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">The authenticated user is not a parking owner.</response>
+        [HttpGet("{id:guid}/details")]
+        [Authorize(Roles = "ParkingOwner")]
+        [ProducesResponseType(typeof(ApiResponse<LocationDetailsDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetDetails(Guid id)
+        {
+            var ownerId = User.GetRequiredUserId();
+            var result = await _service.GetDetailsAsync(ownerId, id);
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+
         /// <summary>Returns the parking spaces available in a parking facility for a given time window.</summary>
         /// <param name="parkingId">The id of the parking facility.</param>
         /// <param name="arrival">The arrival time.</param>

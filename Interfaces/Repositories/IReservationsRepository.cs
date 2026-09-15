@@ -14,6 +14,8 @@ namespace Parkly_Backend.Interfaces.Repositories
         Task<List<Reservation>> GetOverlappingReservationsAsync(Guid spaceId, DateTime arrival, DateTime departure, Guid? excludeReservationId = null);
         Task<List<Reservation>> GetOverlappingReservationsForSpacesAsync(IEnumerable<Guid> spaceIds, DateTime arrival, DateTime departure);
         Task<int> GetCheckedInCountForParkingAsync(Guid parkingId);
+        Task<int> GetReservedCountForParkingAsync(Guid parkingId, DateTime now);
+        Task<decimal> GetParkingMonthRevenueAsync(Guid parkingId, DateTime monthStart, DateTime monthEnd);
         Task<Reservation?> GetByQrCodeWithIncludesAsync(string qrCode);
         Task<bool> IsQrCodeInUseAsync(string qrCode);
         Task<List<Reservation>> GetOwnerTodaysReservationsAsync(Guid ownerId, int page, int pageSize);

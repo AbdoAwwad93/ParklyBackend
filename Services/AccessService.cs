@@ -18,12 +18,15 @@ namespace Parkly_Backend.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOccupancyService _occupancyService;
         private readonly ILogger<AccessService> _logger;
+        private readonly IParkingSpacesService _spacesService;
 
-        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService, IOptions<JwtOptions>? jwtOptions, ILogger<AccessService> logger)
+        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService, IOptions<JwtOptions>? jwtOptions, ILogger<AccessService> logger,IParkingSpacesService spacesService)
         {
             _unitOfWork = unitOfWork;
             _occupancyService = occupancyService;
             _logger = logger;
+            _spacesService =spacesService;
+
         }
 
         public async Task<ApiResponse> ProcessScanAsync(AccessScanDTO dto)
@@ -54,6 +57,11 @@ namespace Parkly_Backend.Services
                         return ApiResponse.Failure($"Cannot process Entry. Current status: {reservation.Status}");
                     }
                     reservation.Status = ReservationStatus.CheckedIn;
+                    var entrySpace = await _unitOfWork.ParkingSpaces.GetByIdAsync(reservation.SpaceId);
+                    if (entrySpace != null)
+                    {
+                        entrySpace.Status = SpaceStatus.Occupied;
+                    }
                 }
                 else if (dto.ScanType == ScanType.Exit)
                 {
@@ -63,6 +71,8 @@ namespace Parkly_Backend.Services
                         return ApiResponse.Failure($"Cannot process Exit. Current status: {reservation.Status}");
                     }
                     reservation.Status = ReservationStatus.Completed;
+                    await _unitOfWork.SaveChangesAsync();
+                    await _spacesService.RefreshSpaceStatusAsync(reservation.SpaceId);
                 }
 
                 var accessLog = new AccessLog
@@ -117,6 +127,12 @@ namespace Parkly_Backend.Services
                 await _unitOfWork.BeginTransactionAsync();
 
                 reservation.Status = ReservationStatus.CheckedIn;
+                var checkInSpace = await _unitOfWork.ParkingSpaces.GetByIdAsync(reservation.SpaceId);
+                if (checkInSpace != null)
+                {
+                    checkInSpace.Status = SpaceStatus.Occupied;
+                }
+
                 var entryTimestamp = DateTime.UtcNow;
 
                 var accessLog = new AccessLog
@@ -171,6 +187,9 @@ namespace Parkly_Backend.Services
                 await _unitOfWork.BeginTransactionAsync();
 
                 reservation.Status = ReservationStatus.Completed;
+                await _unitOfWork.SaveChangesAsync();
+                await _spacesService.RefreshSpaceStatusAsync(reservation.SpaceId);
+
                 var exitTimestamp = DateTime.UtcNow;
 
                 var accessLog = new AccessLog
@@ -198,8 +217,7 @@ namespace Parkly_Backend.Services
             }
         }
 
-        private static CheckInResponseDTO BuildCheckInResponse(Reservation reservation, DateTime checkInTime)
-        {
+        private static CheckInResponseDTO BuildCheckInResponse(Reservation reservation, DateTime checkInTime)        {
             var durationHours = Math.Round((reservation.DepartureTime - reservation.ArrivalTime).TotalHours, 1);
 
             return new CheckInResponseDTO

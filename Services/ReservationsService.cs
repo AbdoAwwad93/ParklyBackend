@@ -19,14 +19,16 @@ namespace Parkly_Backend.Services
         private readonly IAvailabilityService _availabilityService;
         private readonly IMapper _mapper;
         private readonly ILogger<ReservationsService> _logger;
+        private readonly IParkingSpacesService _spacesService;
 
-        public ReservationsService(IUnitOfWork unitOfWork, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper, ILogger<ReservationsService> logger, IOptions<JwtOptions>? jwtOptions = null)
+        public ReservationsService(IUnitOfWork unitOfWork,IParkingSpacesService spacesService, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper, ILogger<ReservationsService> logger, IOptions<JwtOptions>? jwtOptions = null)
         {
             _unitOfWork = unitOfWork;
             _pricingService = pricingService;
             _availabilityService = availabilityService;
             _mapper = mapper;
             _logger = logger;
+            _spacesService = spacesService;
         }
 
         public async Task<ApiResponse<ReservationResponseDTO>> CreateAsync(Guid userId, CreateReservationDTO dto)
@@ -71,6 +73,14 @@ namespace Parkly_Backend.Services
 
                 await _unitOfWork.Reservations.AddAsync(reservation);
                 await _unitOfWork.SaveChangesAsync();
+                var now = DateTime.UtcNow;
+                if (reservation.ArrivalTime <= now && reservation.DepartureTime > now
+                    && space.Status == SpaceStatus.Available)
+                {
+                    space.Status = SpaceStatus.Reserved;
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
                 await _unitOfWork.CommitTransactionAsync();
 
                 _logger.LogInformation("Reservation {ReservationId} created successfully for User {UserId} at Space {SpaceId}", reservation.ReservationId, userId, dto.SpaceId);
@@ -157,6 +167,9 @@ namespace Parkly_Backend.Services
             {
                 reservation.Status = ReservationStatus.Cancelled;
                 await _unitOfWork.SaveChangesAsync();
+
+                await _spacesService.RefreshSpaceStatusAsync(reservation.SpaceId);
+
                 await _unitOfWork.CommitTransactionAsync();
 
                 _logger.LogInformation("Reservation {ReservationId} cancelled successfully by User {UserId}", reservationId, userId);

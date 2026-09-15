@@ -85,6 +85,28 @@ namespace Parkly_Backend.Data.Repositories
                 .CountAsync();
         }
 
+        public async Task<int> GetReservedCountForParkingAsync(Guid parkingId, DateTime now)
+        {
+            return await _dbSet
+                .Where(r => r.ParkingSpace.ParkingId == parkingId
+                    && r.Status == ReservationStatus.Confirmed
+                    && r.ArrivalTime <= now
+                    && r.DepartureTime > now)
+                .Select(r => r.SpaceId)
+                .Distinct()
+                .CountAsync();
+        }
+
+        public async Task<decimal> GetParkingMonthRevenueAsync(Guid parkingId, DateTime monthStart, DateTime monthEnd)
+        {
+            return await _dbSet
+                .Where(r => r.ParkingSpace.ParkingId == parkingId
+                    && r.Status == ReservationStatus.Completed
+                    && r.DepartureTime >= monthStart
+                    && r.DepartureTime < monthEnd)
+                .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m;
+        }
+
         public async Task<Reservation?> GetByQrCodeWithIncludesAsync(string qrCode)
         {
             return await _dbSet
