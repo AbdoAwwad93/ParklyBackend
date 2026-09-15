@@ -25,6 +25,7 @@ namespace Parkly_Backend.Data
         public DbSet<EmailVerificationOtp> EmailVerificationOtps { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<SavedPlace> SavedPlaces { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -33,6 +34,10 @@ namespace Parkly_Backend.Data
             builder.Entity<SavedPlace>()
                 .HasIndex(s => new { s.UserId, s.PlaceType })
                 .HasDatabaseName("IX_SavedPlaces_UserId_PlaceType");
+
+            builder.Entity<Notification>()
+                .HasIndex(n => new { n.RecipientUserId, n.IsRead, n.CreatedAt })
+                .HasDatabaseName("IX_Notifications_RecipientUserId_IsRead_CreatedAt");
         }
     }
 }

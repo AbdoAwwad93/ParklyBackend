@@ -22,6 +22,7 @@ namespace Parkly_Backend.Data.Repositories
         public IPasswordResetOtpsRepository PasswordResetOtps { get; private set; }
         public IAccessLogsRepository AccessLogs { get; private set; }
         public ITransactionsRepository Transactions { get; private set; }
+        public INotificationsRepository Notifications { get; private set; }
 
         public UnitOfWork(AppDbContext context)
         {
@@ -37,6 +38,7 @@ namespace Parkly_Backend.Data.Repositories
             PasswordResetOtps = new PasswordResetOtpsRepository(_context);
             AccessLogs = new AccessLogsRepository(_context);
             Transactions = new TransactionsRepository(_context);
+            Notifications = new NotificationsRepository(_context);
         }
 
         public async Task<int> SaveChangesAsync()

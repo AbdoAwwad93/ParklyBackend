@@ -19,13 +19,15 @@ namespace Parkly_Backend.Services
         private readonly IOccupancyService _occupancyService;
         private readonly ILogger<AccessService> _logger;
         private readonly IParkingSpacesService _spacesService;
+        private readonly INotificationService _notificationService;
 
-        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService, IOptions<JwtOptions>? jwtOptions, ILogger<AccessService> logger,IParkingSpacesService spacesService)
+        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService, IOptions<JwtOptions>? jwtOptions, ILogger<AccessService> logger,IParkingSpacesService spacesService, INotificationService notificationService)
         {
             _unitOfWork = unitOfWork;
             _occupancyService = occupancyService;
             _logger = logger;
             _spacesService =spacesService;
+            _notificationService = notificationService;
 
         }
 
@@ -84,6 +86,7 @@ namespace Parkly_Backend.Services
 
                 await _unitOfWork.AccessLogs.AddAsync(accessLog);
                 await _unitOfWork.SaveChangesAsync();
+                await CreateAccessNotificationAsync(reservation, dto.ScanType, accessLog.ScanTimestamp);
                 await _unitOfWork.CommitTransactionAsync();
 
                 await _occupancyService.BroadcastOccupancyUpdateAsync(reservation.ParkingSpace.ParkingId);
@@ -144,6 +147,7 @@ namespace Parkly_Backend.Services
 
                 await _unitOfWork.AccessLogs.AddAsync(accessLog);
                 await _unitOfWork.SaveChangesAsync();
+                await CreateAccessNotificationAsync(reservation, ScanType.Entry, entryTimestamp);
                 await _unitOfWork.CommitTransactionAsync();
 
                 await _occupancyService.BroadcastOccupancyUpdateAsync(reservation.ParkingSpace.ParkingId);
@@ -201,6 +205,7 @@ namespace Parkly_Backend.Services
 
                 await _unitOfWork.AccessLogs.AddAsync(accessLog);
                 await _unitOfWork.SaveChangesAsync();
+                await CreateAccessNotificationAsync(reservation, ScanType.Exit, exitTimestamp);
                 await _unitOfWork.CommitTransactionAsync();
 
                 await _occupancyService.BroadcastOccupancyUpdateAsync(reservation.ParkingSpace.ParkingId);
@@ -236,6 +241,25 @@ namespace Parkly_Backend.Services
                 TotalPrice = reservation.TotalPrice,
                 QrCode = reservation.QrCode
             };
+        }
+
+        private async Task CreateAccessNotificationAsync(Reservation reservation, ScanType scanType, DateTime timestamp)
+        {
+            var parking = reservation.ParkingSpace?.Parking;
+            if (parking == null)
+            {
+                return;
+            }
+
+            var customerName = string.IsNullOrWhiteSpace(reservation.User?.FullName) ? "A customer" : reservation.User.FullName;
+            var action = scanType == ScanType.Entry ? "checked in to" : "checked out of";
+            var title = scanType == ScanType.Entry
+                ? $"Check-in — {parking.Name}"
+                : $"Check-out — {parking.Name}";
+            var message = $"{customerName} {action} {reservation.ParkingSpace.SpotNumber}, {parking.Name} at {timestamp:t}.";
+
+            await _notificationService.CreateAsync(parking.OwnerId, NotificationType.Update, title, message,
+                parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
         }
 
         private static CheckOutResponseDTO BuildCheckOutResponse(Reservation reservation, DateTime exitTime)

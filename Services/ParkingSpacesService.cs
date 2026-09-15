@@ -14,12 +14,14 @@ namespace Parkly_Backend.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAvailabilityService _availabilityService;
         private readonly IMapper _mapper;
+        private readonly INotificationService _notificationService;
 
-        public ParkingSpacesService(IUnitOfWork unitOfWork, IAvailabilityService availabilityService, IMapper mapper)
+        public ParkingSpacesService(IUnitOfWork unitOfWork, IAvailabilityService availabilityService, IMapper mapper, INotificationService notificationService)
         {
             _unitOfWork = unitOfWork;
             _availabilityService = availabilityService;
             _mapper = mapper;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<List<ParkingSpaceResponseDTO>>> GetAllAsync()
@@ -86,8 +88,17 @@ namespace Parkly_Backend.Services
                 return ApiResponse<ParkingSpaceResponseDTO>.Failure("Parking space not found or you do not have permission.");
             }
 
+            var wasActive = space.IsActive;
             _mapper.Map(dto, space);
             space.Level = string.IsNullOrWhiteSpace(space.Level) ? null : space.Level.Trim();
+
+            if (wasActive && !space.IsActive)
+            {
+                await _notificationService.CreateAsync(ownerId, NotificationType.Alert,
+                    $"Maintenance Alert — Space {space.SpotNumber}",
+                    $"Space {space.SpotNumber} at {space.Parking.Name} has been marked unavailable.",
+                    space.ParkingId, null, space.SpaceId);
+            }
             await _unitOfWork.SaveChangesAsync();
 
             var response = await BuildResponseAsync(space.SpaceId);

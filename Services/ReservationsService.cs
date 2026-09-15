@@ -20,8 +20,9 @@ namespace Parkly_Backend.Services
         private readonly IMapper _mapper;
         private readonly ILogger<ReservationsService> _logger;
         private readonly IParkingSpacesService _spacesService;
+        private readonly INotificationService _notificationService;
 
-        public ReservationsService(IUnitOfWork unitOfWork,IParkingSpacesService spacesService, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper, ILogger<ReservationsService> logger, IOptions<JwtOptions>? jwtOptions = null)
+        public ReservationsService(IUnitOfWork unitOfWork,IParkingSpacesService spacesService, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper, ILogger<ReservationsService> logger, INotificationService notificationService, IOptions<JwtOptions>? jwtOptions = null)
         {
             _unitOfWork = unitOfWork;
             _pricingService = pricingService;
@@ -29,6 +30,7 @@ namespace Parkly_Backend.Services
             _mapper = mapper;
             _logger = logger;
             _spacesService = spacesService;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<ReservationResponseDTO>> CreateAsync(Guid userId, CreateReservationDTO dto)
@@ -80,6 +82,8 @@ namespace Parkly_Backend.Services
                     space.Status = SpaceStatus.Reserved;
                     await _unitOfWork.SaveChangesAsync();
                 }
+
+                await CreateReservationNotificationAsync(reservation.ReservationId, NotificationType.Booking);
 
                 await _unitOfWork.CommitTransactionAsync();
 
@@ -170,6 +174,8 @@ namespace Parkly_Backend.Services
 
                 await _spacesService.RefreshSpaceStatusAsync(reservation.SpaceId);
 
+                await CreateReservationNotificationAsync(reservation.ReservationId, NotificationType.Cancellation);
+
                 await _unitOfWork.CommitTransactionAsync();
 
                 _logger.LogInformation("Reservation {ReservationId} cancelled successfully by User {UserId}", reservationId, userId);
@@ -226,6 +232,29 @@ namespace Parkly_Backend.Services
             var reservation = await _unitOfWork.Reservations.GetReservationWithIncludesAsync(reservationId);
             
             return _mapper.Map<ReservationResponseDTO>(reservation);
+        }
+
+        private async Task CreateReservationNotificationAsync(Guid reservationId, NotificationType type)
+        {
+            var reservation = await _unitOfWork.Reservations.GetReservationWithIncludesAsync(reservationId);
+            if (reservation?.ParkingSpace?.Parking == null)
+            {
+                return;
+            }
+
+            var customerName = string.IsNullOrWhiteSpace(reservation.User?.FullName) ? "A customer" : reservation.User.FullName;
+            var parking = reservation.ParkingSpace.Parking;
+            var bookingReference = $"PK-{reservation.ReservationId.ToString("N")[^4..].ToUpperInvariant()}";
+            var title = type == NotificationType.Booking
+                ? $"New Booking — {parking.Name}"
+                : $"Cancellation — Booking {bookingReference}";
+            var message = type == NotificationType.Booking
+                ? $"{customerName} reserved {reservation.ParkingSpace.SpotNumber} for {reservation.ArrivalTime:g}–{reservation.DepartureTime:t}. Payment ${reservation.TotalPrice:F2} received."
+                : $"{customerName} cancelled their reservation for {reservation.ParkingSpace.SpotNumber}."
+                    + $" Booking {bookingReference} is now cancelled.";
+
+            await _notificationService.CreateAsync(parking.OwnerId, type, title, message,
+                parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
         }
 
         public async Task<ApiResponse<List<ReservationResponseDTO>>> GetUserReservationsAsync(Guid userId)
