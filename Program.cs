@@ -120,6 +120,7 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IStorageService, SupabaseStorageService>();
             builder.Services.AddScoped<IDashboardService, DashboardService>();
             builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddScoped<IReportsService, ReportsService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
 
             builder.Services.AddSignalR();
