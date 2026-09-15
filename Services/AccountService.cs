@@ -249,6 +249,15 @@ namespace Parkly_Backend.Services
             
             user.EmailConfirmed = true;
             await _userManager.UpdateAsync(user);
+
+            var parkingOwner = await _unitOfWork.ParkingOwners.FirstOrDefaultAsync(owner => owner.OwnerId == user.Id);
+            if (parkingOwner != null && (parkingOwner.VerificationStatus != VerificationStatus.Verified || !parkingOwner.BusinessVerifiedAt.HasValue))
+            {
+                parkingOwner.VerificationStatus = VerificationStatus.Verified;
+                parkingOwner.BusinessVerifiedAt ??= DateTime.UtcNow;
+                _unitOfWork.ParkingOwners.Update(parkingOwner);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             return ApiResponse.Success("Email verified successfully.");
@@ -554,5 +563,297 @@ namespace Parkly_Backend.Services
                 return ApiResponse<string>.Failure("An error occurred while uploading the image.");
             }
         }
+
+        public async Task<ApiResponse<ProfileSettingsDTO>> GetSettingsAsync(Guid userId)
+        {
+            var user = await _userManager.Users
+                .Include(u => u.ParkingOwner)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+            if (user == null)
+            {
+                return ApiResponse<ProfileSettingsDTO>.Failure("User not found.");
+            }
+
+            var result = new ProfileSettingsDTO
+            {
+                Header = new ProfileSettingsHeaderDTO
+                {
+                    UserId = user.Id,
+                    FullName = user.FullName,
+                    Email = user.Email ?? string.Empty,
+                    Role = user.Role.ToString(),
+                    CreatedAt = user.CreatedAt,
+                    ProfilePictureUrl = user.ProfilePictureUrl,
+                    IsVerifiedOwner = user.ParkingOwner?.VerificationStatus == VerificationStatus.Verified,
+                    Stats = await GetOwnerStatsAsync(user.Id)
+                },
+                Personal = ToPersonalSettings(user),
+                Business = user.ParkingOwner == null ? null : ToBusinessSettings(user.ParkingOwner),
+                Notifications = user.ParkingOwner == null ? null : ToNotificationSettings(user.ParkingOwner),
+                Security = new SecuritySettingsDTO
+                {
+                    SmsTwoFactorEnabled = user.TwoFactorEnabled,
+                    ActiveSessions = await BuildActiveSessionsAsync(user.Id)
+                }
+            };
+
+            return ApiResponse<ProfileSettingsDTO>.Success("Profile settings retrieved successfully.", result);
+        }
+
+        public async Task<ApiResponse<PersonalSettingsDTO>> UpdatePersonalSettingsAsync(Guid userId, UpdatePersonalSettingsDTO dto)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return ApiResponse<PersonalSettingsDTO>.Failure("User not found.");
+            }
+
+            if (!string.Equals(user.Email, dto.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                var existing = await _userManager.FindByEmailAsync(dto.Email);
+                if (existing != null && existing.Id != user.Id)
+                {
+                    return ApiResponse<PersonalSettingsDTO>.Failure("This Email is already exists");
+                }
+
+                user.Email = dto.Email;
+                user.UserName = dto.Email;
+                user.EmailConfirmed = false;
+            }
+
+            user.FullName = dto.FullName.Trim();
+            user.PhoneNumber = dto.PhoneNumber;
+            user.CityState = dto.CityState;
+            user.Bio = dto.Bio;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+            {
+                return ApiResponse<PersonalSettingsDTO>.Failure("Personal settings update failed.", result.Errors.Select(e => e.Description).ToList());
+            }
+
+            return ApiResponse<PersonalSettingsDTO>.Success("Personal settings updated successfully.", ToPersonalSettings(user));
+        }
+
+        public async Task<ApiResponse<BusinessSettingsDTO>> UpdateBusinessSettingsAsync(Guid userId, UpdateBusinessSettingsDTO dto)
+        {
+            var owner = await _unitOfWork.ParkingOwners.FirstOrDefaultAsync(x => x.OwnerId == userId);
+            if (owner == null)
+            {
+                return ApiResponse<BusinessSettingsDTO>.Failure("Parking owner profile not found.");
+            }
+
+            owner.CompanyName = dto.BusinessName.Trim();
+            owner.TaxId = dto.TaxId;
+            owner.StreetAddress = dto.StreetAddress;
+            owner.CityStateZip = dto.CityStateZip;
+            _unitOfWork.ParkingOwners.Update(owner);
+            await _unitOfWork.SaveChangesAsync();
+
+            return ApiResponse<BusinessSettingsDTO>.Success("Business settings updated successfully.", ToBusinessSettings(owner));
+        }
+
+        public async Task<ApiResponse<NotificationSettingsDTO>> UpdateNotificationSettingsAsync(Guid userId, NotificationSettingsDTO dto)
+        {
+            var owner = await _unitOfWork.ParkingOwners.FirstOrDefaultAsync(x => x.OwnerId == userId);
+            if (owner == null)
+            {
+                return ApiResponse<NotificationSettingsDTO>.Failure("Parking owner profile not found.");
+            }
+
+            owner.NotifyNewBookings = dto.NewBookings;
+            owner.NotifyCancellations = dto.Cancellations;
+            owner.NotifyRevenueMilestones = dto.RevenueMilestones;
+            owner.NotifySpaceAlerts = dto.SpaceAlerts;
+            owner.NotifyMarketingUpdates = dto.MarketingUpdates;
+            _unitOfWork.ParkingOwners.Update(owner);
+            await _unitOfWork.SaveChangesAsync();
+
+            return ApiResponse<NotificationSettingsDTO>.Success("Notification preferences updated successfully.", ToNotificationSettings(owner));
+        }
+
+        public async Task<ApiResponse> ChangePasswordAsync(Guid userId, UpdatePasswordDTO dto)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return ApiResponse.Failure("User not found.");
+            }
+
+            var result = await _userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
+            if (!result.Succeeded)
+            {
+                return ApiResponse.Failure("Password update failed.", result.Errors.Select(e => e.Description).ToList());
+            }
+
+            await RevokeOtherSessionsAsync(user.Id);
+            return ApiResponse.Success("Password updated successfully.");
+        }
+
+        public async Task<ApiResponse> UpdateTwoFactorAsync(Guid userId, UpdateTwoFactorDTO dto)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return ApiResponse.Failure("User not found.");
+            }
+
+            user.TwoFactorEnabled = dto.Enabled;
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+            {
+                return ApiResponse.Failure("Two-factor setting update failed.", result.Errors.Select(e => e.Description).ToList());
+            }
+
+            return ApiResponse.Success("Two-factor setting updated successfully.");
+        }
+
+        public async Task<ApiResponse<List<ActiveSessionDTO>>> GetActiveSessionsAsync(Guid userId)
+        {
+            var sessions = await BuildActiveSessionsAsync(userId);
+            return ApiResponse<List<ActiveSessionDTO>>.Success("Active sessions retrieved successfully.", sessions);
+        }
+
+        public async Task<ApiResponse> RevokeSessionAsync(Guid userId, Guid sessionId)
+        {
+            var token = await _unitOfWork.RefreshTokens.FirstOrDefaultAsync(x => x.Id == sessionId && x.UserId == userId);
+            if (token == null)
+            {
+                return ApiResponse.Failure("Session not found.");
+            }
+
+            token.IsRevoked = true;
+            _unitOfWork.RefreshTokens.Update(token);
+            await _unitOfWork.SaveChangesAsync();
+
+            return ApiResponse.Success("Session revoked successfully.");
+        }
+
+        public async Task<ApiResponse> DeleteAccountAsync(Guid userId, DeleteAccountDTO dto)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return ApiResponse.Failure("User not found.");
+            }
+
+            if (!await _userManager.CheckPasswordAsync(user, dto.Password))
+            {
+                return ApiResponse.Failure("Invalid password.");
+            }
+
+            var tokens = await _unitOfWork.RefreshTokens.Query().Where(x => x.UserId == userId).ToListAsync();
+            foreach (var token in tokens)
+            {
+                token.IsRevoked = true;
+                _unitOfWork.RefreshTokens.Update(token);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            IdentityResult result;
+            try
+            {
+                result = await _userManager.DeleteAsync(user);
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogWarning(ex, "Account deletion failed because related records exist for user {UserId}", userId);
+                return ApiResponse.Failure("Account cannot be deleted while related parking, reservation, or payment records exist.");
+            }
+
+            if (!result.Succeeded)
+            {
+                return ApiResponse.Failure("Account deletion failed.", result.Errors.Select(e => e.Description).ToList());
+            }
+
+            return ApiResponse.Success("Account deleted successfully.");
+        }
+
+        private async Task<OwnerStatsDTO> GetOwnerStatsAsync(Guid ownerId)
+        {
+            var parkings = await _unitOfWork.Parkings.Query()
+                .Where(p => p.OwnerId == ownerId)
+                .Include(p => p.ParkingSpaces)
+                .ToListAsync();
+
+            var parkingIds = parkings.Select(p => p.ParkingId).ToList();
+            var startOfMonth = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+            var reservations = await _unitOfWork.Reservations.Query()
+                .Where(r => parkingIds.Contains(r.ParkingSpace.ParkingId))
+                .Include(r => r.ParkingSpace)
+                .ToListAsync();
+
+            return new OwnerStatsDTO
+            {
+                Locations = parkings.Count,
+                TotalSpaces = parkings.Sum(p => p.ParkingSpaces.Count),
+                Bookings = reservations.Count,
+                CurrentMonthRevenue = reservations
+                    .Where(r => r.ArrivalTime >= startOfMonth && r.Status != ReservationStatus.Cancelled)
+                    .Sum(r => r.TotalPrice),
+                AverageRating = parkings.Count == 0 ? 0 : Math.Round(parkings.Average(p => p.AverageRating), 1)
+            };
+        }
+
+        private async Task<List<ActiveSessionDTO>> BuildActiveSessionsAsync(Guid userId)
+        {
+            return await _unitOfWork.RefreshTokens.Query()
+                .Where(x => x.UserId == userId && !x.IsRevoked && !x.IsUsed && x.ExpiryDate > DateTime.UtcNow)
+                .OrderByDescending(x => x.AddedDate)
+                .Select(x => new ActiveSessionDTO
+                {
+                    SessionId = x.Id,
+                    Device = "Unknown device",
+                    Location = "Unknown location",
+                    CreatedAt = x.AddedDate,
+                    ExpiresAt = x.ExpiryDate,
+                    IsCurrent = false
+                })
+                .ToListAsync();
+        }
+
+        private async Task RevokeOtherSessionsAsync(Guid userId)
+        {
+            var activeTokens = await _unitOfWork.RefreshTokens.Query()
+                .Where(x => x.UserId == userId && !x.IsRevoked && !x.IsUsed && x.ExpiryDate > DateTime.UtcNow)
+                .ToListAsync();
+
+            foreach (var token in activeTokens)
+            {
+                token.IsRevoked = true;
+                _unitOfWork.RefreshTokens.Update(token);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        private static PersonalSettingsDTO ToPersonalSettings(AppUser user) => new()
+        {
+            FullName = user.FullName,
+            Email = user.Email ?? string.Empty,
+            PhoneNumber = user.PhoneNumber,
+            CityState = user.CityState,
+            Bio = user.Bio
+        };
+
+        private static BusinessSettingsDTO ToBusinessSettings(ParkingOwner owner) => new()
+        {
+            BusinessName = owner.CompanyName,
+            TaxId = owner.TaxId,
+            StreetAddress = owner.StreetAddress,
+            CityStateZip = owner.CityStateZip,
+            VerificationStatus = owner.VerificationStatus.ToString(),
+            BusinessVerifiedAt = owner.BusinessVerifiedAt
+        };
+
+        private static NotificationSettingsDTO ToNotificationSettings(ParkingOwner owner) => new()
+        {
+            NewBookings = owner.NotifyNewBookings,
+            Cancellations = owner.NotifyCancellations,
+            RevenueMilestones = owner.NotifyRevenueMilestones,
+            SpaceAlerts = owner.NotifySpaceAlerts,
+            MarketingUpdates = owner.NotifyMarketingUpdates
+        };
     }
 }

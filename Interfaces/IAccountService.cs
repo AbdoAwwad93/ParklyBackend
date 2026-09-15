@@ -21,5 +21,14 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse> LogoutAsync(TokenRequestDTO tokenRequest);
         Task<ApiResponse<LoginResponseDTO>> RefreshTokenAsync(TokenRequestDTO tokenRequest);
         Task<ApiResponse<string>> UploadProfilePictureAsync(Guid userId, Microsoft.AspNetCore.Http.IFormFile image);
+        Task<ApiResponse<ProfileSettingsDTO>> GetSettingsAsync(Guid userId);
+        Task<ApiResponse<PersonalSettingsDTO>> UpdatePersonalSettingsAsync(Guid userId, UpdatePersonalSettingsDTO dto);
+        Task<ApiResponse<BusinessSettingsDTO>> UpdateBusinessSettingsAsync(Guid userId, UpdateBusinessSettingsDTO dto);
+        Task<ApiResponse<NotificationSettingsDTO>> UpdateNotificationSettingsAsync(Guid userId, NotificationSettingsDTO dto);
+        Task<ApiResponse> ChangePasswordAsync(Guid userId, UpdatePasswordDTO dto);
+        Task<ApiResponse> UpdateTwoFactorAsync(Guid userId, UpdateTwoFactorDTO dto);
+        Task<ApiResponse<List<ActiveSessionDTO>>> GetActiveSessionsAsync(Guid userId);
+        Task<ApiResponse> RevokeSessionAsync(Guid userId, Guid sessionId);
+        Task<ApiResponse> DeleteAccountAsync(Guid userId, DeleteAccountDTO dto);
     }
 }

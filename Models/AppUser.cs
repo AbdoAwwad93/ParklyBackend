@@ -15,6 +15,10 @@ namespace Parkly_Backend.Models
         public UserRole Role { get; set; } = UserRole.Driver;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public string? ProfilePictureUrl { get; set; }
+        [MaxLength(255)]
+        public string? CityState { get; set; }
+        [MaxLength(1000)]
+        public string? Bio { get; set; }
         public ParkingOwner? ParkingOwner { get; set; }
         public List<Reservation> Reservations { get; set; } = new List<Reservation>();
         public List<Dispute> Disputes { get; set; } = new List<Dispute>();
