@@ -151,7 +151,7 @@ namespace Parkly_Backend.Services
             var candidateSpaces = await _unitOfWork.ParkingSpaces.GetCandidateSpacesInBoundingBoxAsync(
                 minLat,maxLat,minLng,maxLng,
                 query.VehicleSize?.ToString(), query.MaxRate,
-                query.SpaceType?.ToString(), query.Level);
+                query.SpaceType?.ToString(), query.Level, query.Status?.ToString());
             if (candidateSpaces.Count == 0)
             {
                 return ApiResponse<List<NearbyParkingSpaceDTO>>.Success("Nearby parking spaces retrieved successfully.", new List<NearbyParkingSpaceDTO>());
@@ -206,6 +206,7 @@ namespace Parkly_Backend.Services
                     VehicleSize = space.VehicleSize,
                     SpaceType = space.SpaceType,
                     Level = space.Level,
+                    Status = space.Status,
                     BaseHourlyRate = space.BaseHourlyRate,
                     ParkingId = space.ParkingId,
                     ParkingName = space.Parking.Name,

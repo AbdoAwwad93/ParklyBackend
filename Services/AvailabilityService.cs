@@ -26,6 +26,7 @@ namespace Parkly_Backend.Services
             var space = await GetSpaceWithRulesAsync(spaceId);
 
             if (!space.IsActive
+                || space.Status != SpaceStatus.Available
                 || RulesOverlapBlackout(space.Parking.PricingRules, arrival, departure)
                 || OutsideOperatingHours(space.Parking.OperatingHours, arrival, departure))
             {
@@ -73,6 +74,11 @@ namespace Parkly_Backend.Services
 
             foreach (var space in spaces)
             {
+                if (space.Status != SpaceStatus.Available)
+                {
+                    continue;
+                }
+
                 if (RulesOverlapBlackout(space.Parking.PricingRules, arrival, departure))
                 {
                     continue;

@@ -53,7 +53,7 @@ namespace Parkly_Backend.Data.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<ParkingSpace>> GetCandidateSpacesInBoundingBoxAsync(decimal minLat, decimal maxLat, decimal minLng, decimal maxLng, string? vehicleSize = null, decimal? maxRate = null, string? spaceType = null, string? level = null)
+        public async Task<List<ParkingSpace>> GetCandidateSpacesInBoundingBoxAsync(decimal minLat, decimal maxLat, decimal minLng, decimal maxLng, string? vehicleSize = null, decimal? maxRate = null, string? spaceType = null, string? level = null, string? status = null)
         {
             var query = _dbSet
                 .Include(s => s.Parking)
@@ -87,6 +87,14 @@ namespace Parkly_Backend.Data.Repositories
             {
                 var normalizedLevel = level.Trim();
                 query = query.Where(s => s.Level == normalizedLevel);
+            }
+
+            if (!string.IsNullOrEmpty(status))
+            {
+                if (Enum.TryParse<SpaceStatus>(status, true, out var parsedStatus))
+                {
+                    query = query.Where(s => s.Status == parsedStatus);
+                }
             }
 
             return await query.ToListAsync();

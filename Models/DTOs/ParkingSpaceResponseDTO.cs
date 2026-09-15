@@ -29,6 +29,9 @@ namespace Parkly_Backend.Models.DTOs
         /// <summary>The base hourly rate for the space.</summary>
         public decimal BaseHourlyRate { get; set; }
 
+        /// <summary>The current operational status of the space (Available, Occupied, Reserved).</summary>
+        public SpaceStatus Status { get; set; }
+
         /// <summary>Whether the space is currently active and bookable.</summary>
         public bool IsActive { get; set; }
     }

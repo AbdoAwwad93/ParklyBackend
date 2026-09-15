@@ -24,6 +24,9 @@ namespace Parkly_Backend.Models.DTOs
         /// <summary>The base hourly rate for this space.</summary>
         public decimal BaseHourlyRate { get; set; }
 
+        /// <summary>The current operational status of the space (Available, Occupied, Reserved).</summary>
+        public SpaceStatus Status { get; set; }
+
         /// <summary>The identifier of the parent parking facility.</summary>
         public Guid ParkingId { get; set; }
 

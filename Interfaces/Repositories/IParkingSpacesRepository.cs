@@ -13,7 +13,7 @@ namespace Parkly_Backend.Interfaces.Repositories
         Task<ParkingSpace?> GetByIdWithParkingAsync(Guid spaceId);
         Task<ParkingSpace?> GetOwnerSpaceAsync(Guid ownerId, Guid spaceId);
         Task<List<ParkingSpace>> GetActiveSpacesWithRulesForParkingsAsync(IEnumerable<Guid> parkingIds);
-        Task<List<ParkingSpace>> GetCandidateSpacesInBoundingBoxAsync(decimal minLat, decimal maxLat, decimal minLng, decimal maxLng, string? vehicleSize = null, decimal? maxRate = null, string? spaceType = null, string? level = null);
+        Task<List<ParkingSpace>> GetCandidateSpacesInBoundingBoxAsync(decimal minLat, decimal maxLat, decimal minLng, decimal maxLng, string? vehicleSize = null, decimal? maxRate = null, string? spaceType = null, string? level = null, string? status = null);
         Task<bool> HasActiveReservationsAsync(Guid spaceId);
     }
 }

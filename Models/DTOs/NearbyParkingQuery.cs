@@ -30,6 +30,9 @@ namespace Parkly_Backend.Models.DTOs
         /// <summary>Optional filter to only include spaces on this floor/level (e.g. "B1").</summary>
         public string? Level { get; set; }
 
+        /// <summary>Optional filter to only include spaces with this operational status.</summary>
+        public SpaceStatus? Status { get; set; }
+
         /// <summary>Start of the planned parking or arrival window (defaults to UTC now).</summary>
         public DateTime? Arrival { get; set; }
 

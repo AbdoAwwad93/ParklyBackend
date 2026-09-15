@@ -25,6 +25,9 @@ namespace Parkly_Backend.Models.DTOs
         [Range(0, double.MaxValue, ErrorMessage = "BaseHourlyRate cannot be negative.")]
         public decimal BaseHourlyRate { get; set; }
 
+        /// <summary>The current operational status of the space (Available, Occupied, Reserved).</summary>
+        public SpaceStatus Status { get; set; } = SpaceStatus.Available;
+
         /// <summary>Whether the space is currently active and bookable.</summary>
         public bool IsActive { get; set; }
     }

@@ -21,6 +21,7 @@ namespace Parkly_Backend.Models
         public string? Level { get; set; }
         [Column(TypeName = "decimal(10, 2)")]
         public decimal BaseHourlyRate { get; set; }
+        public SpaceStatus Status { get; set; } = SpaceStatus.Available;
         public bool IsActive { get; set; } = true;
         [ForeignKey("ParkingId")]
         public Parking Parking { get; set; } = null!;
