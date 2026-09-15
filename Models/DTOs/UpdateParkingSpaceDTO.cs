@@ -14,6 +14,13 @@ namespace Parkly_Backend.Models.DTOs
         /// <summary>The vehicle size the space accommodates.</summary>
         public VehicleSize? VehicleSize { get; set; }
 
+        /// <summary>The type/purpose of the space (Standard, EVCharging, Accessible, Compact).</summary>
+        public SpaceType SpaceType { get; set; } = SpaceType.Standard;
+
+        /// <summary>The floor/level where the space is located (e.g. "B1", "L1", "Ground"). Optional.</summary>
+        [MaxLength(20, ErrorMessage = "Level cannot exceed 20 characters.")]
+        public string? Level { get; set; }
+
         /// <summary>The base hourly rate for the space.</summary>
         [Range(0, double.MaxValue, ErrorMessage = "BaseHourlyRate cannot be negative.")]
         public decimal BaseHourlyRate { get; set; }

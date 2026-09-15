@@ -42,6 +42,15 @@ namespace Parkly_Backend.Data.Repositories
             return await query.ToListAsync();
         }
 
+        public async Task<List<Parking>> GetByOwnerIdWithSpacesAsync(Guid ownerId)
+        {
+            return await _dbSet
+                .Include(p => p.ParkingSpaces)
+                .Where(p => p.OwnerId == ownerId)
+                .OrderBy(p => p.Name)
+                .ToListAsync();
+        }
+
         public async Task<Parking?> GetByIdWithSpacesAsync(Guid id)
         {
             return await _dbSet

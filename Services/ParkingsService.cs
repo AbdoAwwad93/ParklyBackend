@@ -29,6 +29,13 @@ namespace Parkly_Backend.Services
             return ApiResponse<List<ParkingResponseDTO>>.Success("Parkings retrieved successfully.", response);
         }
 
+        public async Task<ApiResponse<List<ParkingResponseDTO>>> GetOwnedAsync(Guid ownerId)
+        {
+            var parkings = await _unitOfWork.Parkings.GetByOwnerIdWithSpacesAsync(ownerId);
+            var response = _mapper.Map<List<ParkingResponseDTO>>(parkings);
+            return ApiResponse<List<ParkingResponseDTO>>.Success("Owned parkings retrieved successfully.", response);
+        }
+
         public async Task<ApiResponse<ParkingResponseDTO>> GetByIdAsync(Guid id)
         {
             var parking = await _unitOfWork.Parkings.GetByIdWithSpacesAsync(id);

@@ -36,6 +36,23 @@ namespace Parkly_Backend.Controllers
             return Ok(result);
         }
 
+        /// <summary>Returns the parking facilities owned by the authenticated parking owner.</summary>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the owner's parking facilities.</returns>
+        /// <response code="200">Owned parkings retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">The authenticated user is not a parking owner.</response>
+        [HttpGet("mine")]
+        [Authorize(Roles = "ParkingOwner")]
+        [ProducesResponseType(typeof(ApiResponse<List<ParkingResponseDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetMine()
+        {
+            var ownerId = User.GetRequiredUserId();
+            var result = await _service.GetOwnedAsync(ownerId);
+            return Ok(result);
+        }
+
         /// <summary>Returns a single parking facility by id.</summary>
         /// <param name="id">The id of the parking facility.</param>
         /// <returns>An <see cref="ApiResponse{T}"/> containing the parking facility.</returns>

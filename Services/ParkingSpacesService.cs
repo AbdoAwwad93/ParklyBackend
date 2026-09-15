@@ -70,6 +70,7 @@ namespace Parkly_Backend.Services
             }
 
             var space = _mapper.Map<ParkingSpace>(dto);
+            space.Level = string.IsNullOrWhiteSpace(space.Level) ? null : space.Level.Trim();
             await _unitOfWork.ParkingSpaces.AddAsync(space);
             await _unitOfWork.SaveChangesAsync();
 
@@ -86,6 +87,7 @@ namespace Parkly_Backend.Services
             }
 
             _mapper.Map(dto, space);
+            space.Level = string.IsNullOrWhiteSpace(space.Level) ? null : space.Level.Trim();
             await _unitOfWork.SaveChangesAsync();
 
             var response = await BuildResponseAsync(space.SpaceId);
@@ -147,8 +149,9 @@ namespace Parkly_Backend.Services
             var (minLat, maxLat, minLng, maxLng) = GeoHelper.GetBoundingBox(query.Latitude, query.Longitude, radius);
 
             var candidateSpaces = await _unitOfWork.ParkingSpaces.GetCandidateSpacesInBoundingBoxAsync(
-                minLat,maxLat,minLng,maxLng, 
-                query.VehicleSize?.ToString(), query.MaxRate);
+                minLat,maxLat,minLng,maxLng,
+                query.VehicleSize?.ToString(), query.MaxRate,
+                query.SpaceType?.ToString(), query.Level);
             if (candidateSpaces.Count == 0)
             {
                 return ApiResponse<List<NearbyParkingSpaceDTO>>.Success("Nearby parking spaces retrieved successfully.", new List<NearbyParkingSpaceDTO>());
@@ -201,6 +204,8 @@ namespace Parkly_Backend.Services
                     SpaceId = space.SpaceId,
                     SpotNumber = space.SpotNumber,
                     VehicleSize = space.VehicleSize,
+                    SpaceType = space.SpaceType,
+                    Level = space.Level,
                     BaseHourlyRate = space.BaseHourlyRate,
                     ParkingId = space.ParkingId,
                     ParkingName = space.Parking.Name,

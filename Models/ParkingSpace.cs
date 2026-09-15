@@ -16,6 +16,9 @@ namespace Parkly_Backend.Models
         public string SpotNumber { get; set; } = string.Empty;
         [MaxLength(50)]
         public VehicleSize? VehicleSize { get; set; }
+        public SpaceType SpaceType { get; set; } = SpaceType.Standard;
+        [MaxLength(20)]
+        public string? Level { get; set; }
         [Column(TypeName = "decimal(10, 2)")]
         public decimal BaseHourlyRate { get; set; }
         public bool IsActive { get; set; } = true;

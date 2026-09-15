@@ -6,6 +6,7 @@ namespace Parkly_Backend.Interfaces
     public interface IParkingsService
     {
         Task<ApiResponse<List<ParkingResponseDTO>>> GetAllAsync();
+        Task<ApiResponse<List<ParkingResponseDTO>>> GetOwnedAsync(Guid ownerId);
         Task<ApiResponse<ParkingResponseDTO>> GetByIdAsync(Guid id);
         Task<ApiResponse<ParkingResponseDTO>> CreateAsync(Guid ownerId, CreateParkingDTO dto);
         Task<ApiResponse<ParkingResponseDTO>> UpdateAsync(Guid ownerId, Guid id, UpdateParkingDTO dto);
