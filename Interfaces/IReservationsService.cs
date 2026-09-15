@@ -14,5 +14,7 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse<CheckOutResponseDTO>> GetCheckoutPreviewAsync(Guid userId, Guid reservationId);
         Task<ApiResponse<List<ReservationResponseDTO>>> GetUserReservationsAsync(Guid userId);
         Task<ApiResponse<List<ReservationResponseDTO>>> GetActiveUserReservationsAsync(Guid userId);
+        Task<ApiResponse<OwnerReservationsPageDTO>> GetOwnerReservationsAsync(Guid ownerId, string? status, string? search, int page, int pageSize);
+        Task<ApiResponse<OwnerReservationListItemDTO>> GetOwnerReservationByIdAsync(Guid ownerId, Guid reservationId);
     }
 }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models.DTOs;
@@ -171,6 +171,38 @@ namespace Parkly_Backend.Controllers
             var userId = User.GetRequiredUserId();
             var result = await _service.GetActiveUserReservationsAsync(userId);
             return Ok(result);
+        }
+
+        /// <summary>Retrieves the parking owner's reservation list with summary counts, status filtering, search, and paging.</summary>
+        /// <param name="status">Optional status tab: all, upcoming, active, completed, or cancelled.</param>
+        /// <param name="search">Optional free-text search by customer, email, location, space, or booking code.</param>
+        /// <param name="page">1-based page number.</param>
+        /// <param name="pageSize">Number of items per page, clamped to 1-100.</param>
+        [HttpGet("owner")]
+        [Authorize(Roles = "ParkingOwner")]
+        [ProducesResponseType(typeof(ApiResponse<OwnerReservationsPageDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetOwnerReservations([FromQuery] string? status,[FromQuery] string? search,[FromQuery] int page = 1,[FromQuery] int pageSize = 10)
+        {
+            var ownerId = User.GetRequiredUserId();
+            var result = await _service.GetOwnerReservationsAsync(ownerId, status, search, page, pageSize);
+            return Ok(result);
+        }
+
+        /// <summary>Retrieves a single owner-owned reservation row for the reservation details action.</summary>
+        /// <param name="id">The reservation id.</param>
+        [HttpGet("owner/{id:guid}")]
+        [Authorize(Roles = "ParkingOwner")]
+        [ProducesResponseType(typeof(ApiResponse<OwnerReservationListItemDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetOwnerReservationById(Guid id)
+        {
+            var ownerId = User.GetRequiredUserId();
+            var result = await _service.GetOwnerReservationByIdAsync(ownerId, id);
+            return result.IsSuccess ? Ok(result) : NotFound(result);
         }
     }
 }
