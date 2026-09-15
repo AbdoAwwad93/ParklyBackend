@@ -26,6 +26,7 @@ namespace Parkly_Backend.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<SavedPlace> SavedPlaces { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<SpaceTypePricing> SpaceTypePricings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -38,6 +39,11 @@ namespace Parkly_Backend.Data
             builder.Entity<Notification>()
                 .HasIndex(n => new { n.RecipientUserId, n.IsRead, n.CreatedAt })
                 .HasDatabaseName("IX_Notifications_RecipientUserId_IsRead_CreatedAt");
+
+            builder.Entity<SpaceTypePricing>()
+                .HasIndex(x => new { x.ParkingId, x.SpaceType })
+                .IsUnique()
+                .HasDatabaseName("IX_SpaceTypePricings_ParkingId_SpaceType");
         }
     }
 }

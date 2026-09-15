@@ -256,7 +256,7 @@ namespace Parkly_Backend.Services
             var title = scanType == ScanType.Entry
                 ? $"Check-in — {parking.Name}"
                 : $"Check-out — {parking.Name}";
-            var message = $"{customerName} {action} {reservation.ParkingSpace.SpotNumber}, {parking.Name} at {timestamp:t}.";
+            var message = $"{customerName} {action} {reservation.ParkingSpace!.SpotNumber}, {parking.Name} at {timestamp:t}.";
 
             await _notificationService.CreateAsync(parking.OwnerId, NotificationType.Update, title, message,
                 parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
