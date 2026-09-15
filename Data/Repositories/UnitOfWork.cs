@@ -21,6 +21,7 @@ namespace Parkly_Backend.Data.Repositories
         public IEmailVerificationOtpsRepository EmailVerificationOtps { get; private set; }
         public IPasswordResetOtpsRepository PasswordResetOtps { get; private set; }
         public IAccessLogsRepository AccessLogs { get; private set; }
+        public ITransactionsRepository Transactions { get; private set; }
 
         public UnitOfWork(AppDbContext context)
         {
@@ -35,6 +36,7 @@ namespace Parkly_Backend.Data.Repositories
             EmailVerificationOtps = new EmailVerificationOtpsRepository(_context);
             PasswordResetOtps = new PasswordResetOtpsRepository(_context);
             AccessLogs = new AccessLogsRepository(_context);
+            Transactions = new TransactionsRepository(_context);
         }
 
         public async Task<int> SaveChangesAsync()

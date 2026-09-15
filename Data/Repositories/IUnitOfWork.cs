@@ -16,6 +16,7 @@ namespace Parkly_Backend.Data.Repositories
         IEmailVerificationOtpsRepository EmailVerificationOtps { get; }
         IPasswordResetOtpsRepository PasswordResetOtps { get; }
         IAccessLogsRepository AccessLogs { get; }
+        ITransactionsRepository Transactions { get; }
 
         Task<int> SaveChangesAsync();
         Task<IDbContextTransaction> BeginTransactionAsync();

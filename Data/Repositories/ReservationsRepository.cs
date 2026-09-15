@@ -80,6 +80,8 @@ namespace Parkly_Backend.Data.Repositories
         {
             return await _dbSet
                 .Where(r => r.ParkingSpace.ParkingId == parkingId && r.Status == ReservationStatus.CheckedIn)
+                .Select(r => r.SpaceId)
+                .Distinct()
                 .CountAsync();
         }
 
@@ -101,6 +103,95 @@ namespace Parkly_Backend.Data.Repositories
             return await _dbSet
                 .AnyAsync(r => r.QrCode == qrCode &&
                     (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.CheckedIn));
+        }
+
+        public async Task<List<Reservation>> GetOwnerTodaysReservationsAsync(Guid ownerId, int page, int pageSize)
+        {
+            var todayUtc = DateTime.UtcNow.Date;
+            var tomorrowUtc = todayUtc.AddDays(1);
+
+            return await _dbSet
+                .Include(r => r.ParkingSpace)
+                    .ThenInclude(ps => ps.Parking)
+                .Include(r => r.User)
+                .Where(r =>
+                    r.ParkingSpace.Parking.OwnerId == ownerId &&
+                    r.ArrivalTime < tomorrowUtc &&
+                    r.DepartureTime > todayUtc)
+                .OrderBy(r => r.ArrivalTime)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+        }
+
+        public async Task<int> GetOwnerActiveReservationsCountAsync(Guid ownerId)
+        {
+            return await _dbSet
+                .Where(r =>
+                    r.ParkingSpace.Parking.OwnerId == ownerId &&
+                    (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.CheckedIn))
+                .CountAsync();
+        }
+
+        public async Task<int> GetOwnerTodayBookingsCountAsync(Guid ownerId)
+        {
+            var todayUtc = DateTime.UtcNow.Date;
+            var tomorrowUtc = todayUtc.AddDays(1);
+            return await _dbSet
+                .Where(r =>
+                    r.ParkingSpace.Parking.OwnerId == ownerId &&
+                    r.ArrivalTime >= todayUtc &&
+                    r.ArrivalTime < tomorrowUtc)
+                .CountAsync();
+        }
+
+        public async Task<List<Reservation>> GetRecentByParkingsAsync(IEnumerable<Guid> parkingIds, DateTime since, int take)
+        {
+            return await _dbSet
+                .Include(r => r.ParkingSpace)
+                    .ThenInclude(ps => ps.Parking)
+                .Include(r => r.User)
+                .Where(r =>
+                    r.ArrivalTime >= since &&
+                    parkingIds.Contains(r.ParkingSpace.ParkingId))
+                .OrderByDescending(r => r.ArrivalTime)
+                .Take(take)
+                .ToListAsync();
+        }
+
+        public async Task<decimal> GetOwnerTodayRevenueAsync(Guid ownerId, DateTime todayUtc, DateTime tomorrowUtc)
+        {
+            return await _dbSet
+                .Where(r =>
+                    r.ParkingSpace.Parking.OwnerId == ownerId &&
+                    r.Status == ReservationStatus.Completed &&
+                    r.DepartureTime >= todayUtc &&
+                    r.DepartureTime < tomorrowUtc)
+                .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m;
+        }
+
+        public async Task<List<(decimal TotalPrice, DateTime ArrivalTime)>> GetOwnerRevenueInWindowAsync(Guid ownerId, DateTime windowStart)
+        {
+            var rows = await _dbSet
+                .Where(r =>
+                    r.ParkingSpace.Parking.OwnerId == ownerId &&
+                    r.Status == ReservationStatus.Completed &&
+                    r.ArrivalTime >= windowStart)
+                .Select(r => new { r.TotalPrice, r.ArrivalTime })
+                .ToListAsync();
+
+            return rows.Select(r => (r.TotalPrice, r.ArrivalTime)).ToList();
+        }
+
+        public async Task<int> GetOwnerCheckingInSoonCountAsync(IEnumerable<Guid> parkingIds, DateTime from, DateTime to)
+        {
+            return await _dbSet
+                .Where(r =>
+                    parkingIds.Contains(r.ParkingSpace.ParkingId) &&
+                    r.Status == ReservationStatus.Confirmed &&
+                    r.ArrivalTime >= from &&
+                    r.ArrivalTime <= to)
+                .CountAsync();
         }
     }
 }
