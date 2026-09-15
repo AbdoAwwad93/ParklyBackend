@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models.DTOs;
+using Parkly_Backend.Models.Enums;
 using Parkly_Backend.Models.Response;
 using System.Security.Claims;
 using Parkly_Backend.Common.Extensions;
@@ -107,6 +108,52 @@ namespace Parkly_Backend.Controllers
             }
 
             var result = await _service.GetNearbySpacesAsync(query);
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+
+        /// <summary>Returns the parking owner's spaces with summary cards, filters, search, and paging for Space Management.</summary>
+        [HttpGet("owner/management")]
+        [Authorize(Roles = "ParkingOwner")]
+        [ProducesResponseType(typeof(ApiResponse<OwnerSpacesPageDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetOwnerSpaces(
+            [FromQuery] Guid? parkingId,
+            [FromQuery] string? status,
+            [FromQuery] SpaceType? type,
+            [FromQuery] string? search,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 50)
+        {
+            var ownerId = User.GetRequiredUserId();
+            var result = await _service.GetOwnerSpacesAsync(ownerId, parkingId, status, type, search, page, pageSize);
+            return Ok(result);
+        }
+
+        /// <summary>Returns location tabs, summary, occupancy breakdown, and spaces grouped by floor for Space Availability.</summary>
+        [HttpGet("owner/availability")]
+        [Authorize(Roles = "ParkingOwner")]
+        [ProducesResponseType(typeof(ApiResponse<OwnerAvailabilityDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetOwnerAvailability([FromQuery] Guid? parkingId)
+        {
+            var ownerId = User.GetRequiredUserId();
+            var result = await _service.GetOwnerAvailabilityAsync(ownerId, parkingId);
+            return Ok(result);
+        }
+
+        /// <summary>Toggles whether a parking space is active/bookable from the Space Availability screen.</summary>
+        [HttpPatch("owner/{spaceId:guid}/availability")]
+        [Authorize(Roles = "ParkingOwner")]
+        [ProducesResponseType(typeof(ApiResponse<OwnerSpaceListItemDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> UpdateAvailability(Guid spaceId, UpdateSpaceAvailabilityDTO dto)
+        {
+            var ownerId = User.GetRequiredUserId();
+            var result = await _service.UpdateAvailabilityAsync(ownerId, spaceId, dto);
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 

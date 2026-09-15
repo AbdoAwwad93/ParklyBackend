@@ -1,4 +1,5 @@
 using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 using Parkly_Backend.Common.Helpers;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
@@ -239,6 +240,210 @@ namespace Parkly_Backend.Services
 
             return ApiResponse<List<NearbyParkingSpaceDTO>>.Success("Nearby parking spaces retrieved successfully.", pagedResults);
         }
+
+        public async Task<ApiResponse<OwnerSpacesPageDTO>> GetOwnerSpacesAsync(
+            Guid ownerId, Guid? parkingId, string? status, SpaceType? type, string? search, int page, int pageSize)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var spaces = await GetOwnerSpacesQuery(ownerId).ToListAsync();
+            var locations = BuildOwnerLocations(spaces);
+            var summary = BuildSummary(spaces, locations.Count);
+
+            IEnumerable<ParkingSpace> filtered = spaces;
+            if (parkingId.HasValue)
+            {
+                filtered = filtered.Where(space => space.ParkingId == parkingId.Value);
+            }
+
+            if (type.HasValue)
+            {
+                filtered = filtered.Where(space => space.SpaceType == type.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                filtered = ApplyDisplayStatusFilter(filtered, status);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var normalizedSearch = search.Trim().ToLowerInvariant();
+                filtered = filtered.Where(space =>
+                    space.SpotNumber.ToLowerInvariant().Contains(normalizedSearch) ||
+                    (space.Level != null && space.Level.ToLowerInvariant().Contains(normalizedSearch)) ||
+                    space.Parking.Name.ToLowerInvariant().Contains(normalizedSearch));
+            }
+
+            var filteredList = filtered
+                .OrderBy(space => space.Parking.Name)
+                .ThenBy(space => NormalizeLevel(space.Level))
+                .ThenBy(space => space.SpotNumber)
+                .ToList();
+
+            var totalCount = filteredList.Count;
+            var items = filteredList
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(ToOwnerSpaceListItem)
+                .ToList();
+
+            return ApiResponse<OwnerSpacesPageDTO>.Success("Owner parking spaces retrieved successfully.", new OwnerSpacesPageDTO
+            {
+                Summary = summary,
+                Locations = locations,
+                Items = items,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize)
+            });
+        }
+
+        public async Task<ApiResponse<OwnerAvailabilityDTO>> GetOwnerAvailabilityAsync(Guid ownerId, Guid? parkingId)
+        {
+            var spaces = await GetOwnerSpacesQuery(ownerId).ToListAsync();
+            var locations = BuildOwnerLocations(spaces);
+            var selectedParkingId = parkingId ?? locations.FirstOrDefault()?.ParkingId;
+            var selectedSpaces = selectedParkingId.HasValue
+                ? spaces.Where(space => space.ParkingId == selectedParkingId.Value).ToList()
+                : new List<ParkingSpace>();
+
+            var selectedName = selectedSpaces.FirstOrDefault()?.Parking.Name
+                ?? locations.FirstOrDefault(location => location.ParkingId == selectedParkingId)?.Name
+                ?? string.Empty;
+
+            var levels = selectedSpaces
+                .GroupBy(space => NormalizeLevel(space.Level))
+                .OrderBy(group => group.Key)
+                .Select(group => new AvailabilityLevelGroupDTO
+                {
+                    Level = group.Key,
+                    Spaces = group.OrderBy(space => space.SpotNumber).Select(ToOwnerSpaceListItem).ToList()
+                })
+                .ToList();
+
+            return ApiResponse<OwnerAvailabilityDTO>.Success("Owner space availability retrieved successfully.", new OwnerAvailabilityDTO
+            {
+                Locations = locations,
+                SelectedParkingId = selectedParkingId,
+                SelectedParkingName = selectedName,
+                Summary = BuildSummary(selectedSpaces, selectedParkingId.HasValue ? 1 : 0),
+                Levels = levels
+            });
+        }
+
+        public async Task<ApiResponse<OwnerSpaceListItemDTO>> UpdateAvailabilityAsync(Guid ownerId, Guid spaceId, UpdateSpaceAvailabilityDTO dto)
+        {
+            var space = await GetOwnerSpaceAsync(ownerId, spaceId);
+            if (space == null)
+            {
+                return ApiResponse<OwnerSpaceListItemDTO>.Failure("Parking space not found or you do not have permission.");
+            }
+
+            var wasActive = space.IsActive;
+            space.IsActive = dto.IsActive;
+            if (!space.IsActive)
+            {
+                space.Status = SpaceStatus.Available;
+            }
+            else
+            {
+                await RefreshSpaceStatusAsync(space.SpaceId);
+            }
+
+            if (wasActive && !space.IsActive)
+            {
+                await _notificationService.CreateAsync(ownerId, NotificationType.Alert,
+                    $"Maintenance Alert - Space {space.SpotNumber}",
+                    $"Space {space.SpotNumber} at {space.Parking.Name} has been marked unavailable.",
+                    space.ParkingId, null, space.SpaceId);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            var refreshed = await _unitOfWork.ParkingSpaces.GetByIdWithParkingAsync(spaceId);
+            return ApiResponse<OwnerSpaceListItemDTO>.Success("Space availability updated successfully.", ToOwnerSpaceListItem(refreshed!));
+        }
+
+        private IQueryable<ParkingSpace> GetOwnerSpacesQuery(Guid ownerId)
+        {
+            return _unitOfWork.ParkingSpaces.Query()
+                .Include(space => space.Parking)
+                .Where(space => space.Parking.OwnerId == ownerId);
+        }
+
+        private static List<OwnerSpaceLocationDTO> BuildOwnerLocations(List<ParkingSpace> spaces)
+        {
+            return spaces
+                .GroupBy(space => new { space.ParkingId, space.Parking.Name })
+                .OrderBy(group => group.Key.Name)
+                .Select(group => new OwnerSpaceLocationDTO
+                {
+                    ParkingId = group.Key.ParkingId,
+                    Name = group.Key.Name
+                })
+                .ToList();
+        }
+
+        private static OwnerSpaceSummaryDTO BuildSummary(List<ParkingSpace> spaces, int locationCount)
+        {
+            var available = spaces.Count(space => space.IsActive && space.Status == SpaceStatus.Available);
+            var occupied = spaces.Count(space => space.IsActive && space.Status == SpaceStatus.Occupied);
+            var reserved = spaces.Count(space => space.IsActive && space.Status == SpaceStatus.Reserved);
+            var maintenance = spaces.Count(space => !space.IsActive);
+            var total = spaces.Count;
+            var used = occupied + reserved;
+
+            return new OwnerSpaceSummaryDTO
+            {
+                TotalSpaces = total,
+                Locations = locationCount,
+                Available = available,
+                Occupied = occupied,
+                Reserved = reserved,
+                Maintenance = maintenance,
+                OccupancyPercentage = total == 0 ? 0 : (int)Math.Round(used * 100.0 / total)
+            };
+        }
+
+        private static IEnumerable<ParkingSpace> ApplyDisplayStatusFilter(IEnumerable<ParkingSpace> spaces, string status)
+        {
+            var normalizedStatus = status.Trim().ToLowerInvariant();
+            return normalizedStatus switch
+            {
+                "available" => spaces.Where(space => space.IsActive && space.Status == SpaceStatus.Available),
+                "occupied" => spaces.Where(space => space.IsActive && space.Status == SpaceStatus.Occupied),
+                "reserved" => spaces.Where(space => space.IsActive && space.Status == SpaceStatus.Reserved),
+                "maintenance" or "inactive" => spaces.Where(space => !space.IsActive),
+                _ => spaces
+            };
+        }
+
+        private static OwnerSpaceListItemDTO ToOwnerSpaceListItem(ParkingSpace space) => new()
+        {
+            SpaceId = space.SpaceId,
+            ParkingId = space.ParkingId,
+            ParkingName = space.Parking?.Name ?? string.Empty,
+            SpotNumber = space.SpotNumber,
+            Level = NormalizeLevel(space.Level),
+            SpaceType = space.SpaceType,
+            DisplayType = FormatSpaceType(space.SpaceType),
+            BaseHourlyRate = space.BaseHourlyRate,
+            Status = space.Status,
+            DisplayStatus = space.IsActive ? space.Status.ToString() : "Maintenance",
+            IsActive = space.IsActive
+        };
+
+        private static string NormalizeLevel(string? level)
+            => string.IsNullOrWhiteSpace(level) ? "Unassigned" : level.Trim();
+
+        private static string FormatSpaceType(SpaceType type) => type switch
+        {
+            SpaceType.EVCharging => "EV Charging",
+            _ => type.ToString()
+        };
+
         /// <summary>
         /// Recomputes Space.Status from live reservations.
         /// CheckedIn => Occupied, Confirmed overlapping now => Reserved, else Available.
