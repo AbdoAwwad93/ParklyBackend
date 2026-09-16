@@ -98,7 +98,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="400">Invalid parameters or coordinates.</response>
         [HttpGet("nearby")]
         [AllowAnonymous]
-        [ProducesResponseType(typeof(ApiResponse<List<NearbyParkingSpaceDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<NearbyParkingSpacePageDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetNearby([FromQuery] NearbyParkingQuery query)
         {

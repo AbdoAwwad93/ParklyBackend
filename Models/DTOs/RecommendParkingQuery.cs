@@ -35,8 +35,16 @@ namespace Parkly_Backend.Models.DTOs
         /// <summary>If true, only returns facilities or spots that have active availability for the requested window. Defaults to true.</summary>
         public bool OnlyAvailable { get; set; } = true;
 
-        /// <summary>The number of items to recommend (default 10, max 50).</summary>
+        /// <summary>The page number for paginated results (1-indexed, default 1).</summary>
+        [Range(1, int.MaxValue, ErrorMessage = "Page must be at least 1.")]
+        public int Page { get; set; } = 1;
+
+        /// <summary>The number of items per page (default 10, max 50).</summary>
+        [Range(1, 50, ErrorMessage = "PageSize must be between 1 and 50.")]
+        public int PageSize { get; set; } = 10;
+
+        /// <summary>Optional legacy parameter for page size (default 10, max 50). Use PageSize instead.</summary>
         [Range(1, 50, ErrorMessage = "Limit must be between 1 and 50.")]
-        public int Limit { get; set; } = 10;
+        public int? Limit { get; set; }
     }
 }

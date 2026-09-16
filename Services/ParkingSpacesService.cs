@@ -138,15 +138,15 @@ namespace Parkly_Backend.Services
             return _mapper.Map<ParkingSpaceResponseDTO>(space);
         }
 
-        public async Task<ApiResponse<List<NearbyParkingSpaceDTO>>> GetNearbySpacesAsync(NearbyParkingQuery query)
+        public async Task<ApiResponse<NearbyParkingSpacePageDTO>> GetNearbySpacesAsync(NearbyParkingQuery query)
         {
             if (query.Latitude < -90 || query.Latitude > 90)
             {
-                return ApiResponse<List<NearbyParkingSpaceDTO>>.Failure("Latitude must be between -90 and 90.");
+                return ApiResponse<NearbyParkingSpacePageDTO>.Failure("Latitude must be between -90 and 90.");
             }
             if (query.Longitude < -180 || query.Longitude > 180)
             {
-                return ApiResponse<List<NearbyParkingSpaceDTO>>.Failure("Longitude must be between -180 and 180.");
+                return ApiResponse<NearbyParkingSpacePageDTO>.Failure("Longitude must be between -180 and 180.");
             }
 
             var arrival = query.Arrival ?? DateTime.UtcNow;
@@ -154,7 +154,7 @@ namespace Parkly_Backend.Services
 
             if (arrival >= departure)
             {
-                return ApiResponse<List<NearbyParkingSpaceDTO>>.Failure("Departure time must be after arrival time.");
+                return ApiResponse<NearbyParkingSpacePageDTO>.Failure("Departure time must be after arrival time.");
             }
 
             var radius = query.RadiusKm > 0 ? query.RadiusKm : 5.0;
@@ -166,7 +166,9 @@ namespace Parkly_Backend.Services
                 query.SpaceType?.ToString(), query.Level, query.Status?.ToString());
             if (candidateSpaces.Count == 0)
             {
-                return ApiResponse<List<NearbyParkingSpaceDTO>>.Success("Nearby parking spaces retrieved successfully.", new List<NearbyParkingSpaceDTO>());
+                var emptyPage = query.Page > 0 ? query.Page : 1;
+                var emptyPageSize = query.PageSize > 0 ? query.PageSize : 20;
+                return ApiResponse<NearbyParkingSpacePageDTO>.Success("Nearby parking spaces retrieved successfully.", new NearbyParkingSpacePageDTO([], 0, emptyPage, emptyPageSize));
             }
             var inRangeSpaces = new List<ParkingSpace>();
             var spaceDistances = new Dictionary<Guid, double>();
@@ -191,7 +193,9 @@ namespace Parkly_Backend.Services
 
             if (inRangeSpaces.Count == 0)
             {
-                return ApiResponse<List<NearbyParkingSpaceDTO>>.Success("Nearby parking spaces retrieved successfully.", new List<NearbyParkingSpaceDTO>());
+                var emptyPage = query.Page > 0 ? query.Page : 1;
+                var emptyPageSize = query.PageSize > 0 ? query.PageSize : 20;
+                return ApiResponse<NearbyParkingSpacePageDTO>.Success("Nearby parking spaces retrieved successfully.", new NearbyParkingSpacePageDTO([], 0, emptyPage, emptyPageSize));
             }
             var inRangeParkingIds = inRangeSpaces.Select(s => s.ParkingId).Distinct().ToList();
             var availableSpacesByParking = await _availabilityService.GetAvailableSpacesForParkingsAsync(inRangeParkingIds, arrival, departure);
@@ -234,11 +238,12 @@ namespace Parkly_Backend.Services
                 ? results.OrderBy(s => s.BaseHourlyRate).ThenBy(s => s.DistanceKm)
                 : results.OrderBy(s => s.DistanceKm).ThenBy(s => s.BaseHourlyRate);
 
-            var page = query.Page > 0 ? query.Page : 1;
-            var pageSize = query.PageSize > 0 ? query.PageSize : 20;
-            var pagedResults = sorted.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            var sortedList = sorted.ToList();
+            var (pagedResults, page, pageSize, totalItems, totalPages, hasNextPage, hasPreviousPage) =
+                PaginationHelper.Paginate(sortedList, query.Page, query.PageSize);
 
-            return ApiResponse<List<NearbyParkingSpaceDTO>>.Success("Nearby parking spaces retrieved successfully.", pagedResults);
+            var response = new NearbyParkingSpacePageDTO(pagedResults, totalItems, page, pageSize);
+            return ApiResponse<NearbyParkingSpacePageDTO>.Success("Nearby parking spaces retrieved successfully.", response);
         }
 
         public async Task<ApiResponse<OwnerSpacesPageDTO>> GetOwnerSpacesAsync(

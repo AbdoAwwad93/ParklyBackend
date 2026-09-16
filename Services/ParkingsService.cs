@@ -175,7 +175,7 @@ namespace Parkly_Backend.Services
             return ApiResponse.Success("Parking deleted successfully.");
         }
 
-        public async Task<ApiResponse<List<SearchParkingDTO>>> SearchAsync(SearchParkingQuery query)
+        public async Task<ApiResponse<SearchParkingPageDTO>> SearchAsync(SearchParkingQuery query)
         {
             var parkings = await _unitOfWork.Parkings.GetParkingsWithSpacesAsync();
             var filtered = parkings.AsEnumerable();
@@ -244,18 +244,22 @@ namespace Parkly_Backend.Services
                 results = results.OrderBy(r => r.DistanceKm ?? double.MaxValue).ToList();
             }
 
-            return ApiResponse<List<SearchParkingDTO>>.Success("Search completed successfully.", results);
+            var (pagedResults, page, pageSize, totalItems, totalPages, hasNextPage, hasPreviousPage) =
+                PaginationHelper.Paginate(results, query.Page, query.PageSize);
+
+            var response = new SearchParkingPageDTO(pagedResults, totalItems, page, pageSize);
+            return ApiResponse<SearchParkingPageDTO>.Success("Search completed successfully.", response);
         }
 
-        public async Task<ApiResponse<List<NearbyParkingDTO>>> GetNearbyAsync(NearbyParkingQuery query)
+        public async Task<ApiResponse<NearbyParkingPageDTO>> GetNearbyAsync(NearbyParkingQuery query)
         {
             if (query.Latitude < -90 || query.Latitude > 90)
             {
-                return ApiResponse<List<NearbyParkingDTO>>.Failure("Latitude must be between -90 and 90.");
+                return ApiResponse<NearbyParkingPageDTO>.Failure("Latitude must be between -90 and 90.");
             }
             if (query.Longitude < -180 || query.Longitude > 180)
             {
-                return ApiResponse<List<NearbyParkingDTO>>.Failure("Longitude must be between -180 and 180.");
+                return ApiResponse<NearbyParkingPageDTO>.Failure("Longitude must be between -180 and 180.");
             }
 
             var arrival = query.Arrival ?? DateTime.UtcNow;
@@ -263,7 +267,7 @@ namespace Parkly_Backend.Services
 
             if (arrival >= departure)
             {
-                return ApiResponse<List<NearbyParkingDTO>>.Failure("Departure time must be after arrival time.");
+                return ApiResponse<NearbyParkingPageDTO>.Failure("Departure time must be after arrival time.");
             }
 
             var radius = query.RadiusKm > 0 ? query.RadiusKm : 5.0;
@@ -293,7 +297,9 @@ namespace Parkly_Backend.Services
 
             if (inRangeParkings.Count == 0)
             {
-                return ApiResponse<List<NearbyParkingDTO>>.Success("Nearby parkings retrieved successfully.", new List<NearbyParkingDTO>());
+                var emptyPage = query.Page > 0 ? query.Page : 1;
+                var emptyPageSize = query.PageSize > 0 ? query.PageSize : 20;
+                return ApiResponse<NearbyParkingPageDTO>.Success("Nearby parkings retrieved successfully.", new NearbyParkingPageDTO([], 0, emptyPage, emptyPageSize));
             }
 
             // Single batch query for available spaces across all in-range facilities (eliminates N+1)
@@ -356,14 +362,15 @@ namespace Parkly_Backend.Services
                 ? results.OrderBy(p => p.MinHourlyRate ?? decimal.MaxValue).ThenBy(p => p.DistanceKm)
                 : results.OrderBy(p => p.DistanceKm).ThenBy(p => p.MinHourlyRate ?? decimal.MaxValue);
 
-            var page = query.Page > 0 ? query.Page : 1;
-            var pageSize = query.PageSize > 0 ? query.PageSize : 20;
-            var pagedResults = sorted.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            var sortedList = sorted.ToList();
+            var (pagedResults, page, pageSize, totalItems, totalPages, hasNextPage, hasPreviousPage) =
+                PaginationHelper.Paginate(sortedList, query.Page, query.PageSize);
 
-            return ApiResponse<List<NearbyParkingDTO>>.Success("Nearby parkings retrieved successfully.", pagedResults);
+            var response = new NearbyParkingPageDTO(pagedResults, totalItems, page, pageSize);
+            return ApiResponse<NearbyParkingPageDTO>.Success("Nearby parkings retrieved successfully.", response);
         }
 
-        public async Task<ApiResponse<List<RecommendParkingDTO>>> GetRecommendationsAsync(Guid userId, RecommendParkingQuery query)
+        public async Task<ApiResponse<RecommendParkingPageDTO>> GetRecommendationsAsync(Guid userId, RecommendParkingQuery query)
         {
             var savedPlaces = await _unitOfWork.SavedPlaces.GetUserSavedPlacesOrderedAsync(userId);
             var pastReservations = await _unitOfWork.Reservations.GetAllReservationsByUserAsync(userId);
@@ -374,7 +381,7 @@ namespace Parkly_Backend.Services
 
             if (query.RadiusKm.HasValue && (!query.Latitude.HasValue || !query.Longitude.HasValue))
             {
-                return ApiResponse<List<RecommendParkingDTO>>.Failure("Latitude and Longitude are required when specifying a recommendation radius.");
+                return ApiResponse<RecommendParkingPageDTO>.Failure("Latitude and Longitude are required when specifying a recommendation radius.");
             }
 
             var parkings = await _unitOfWork.Parkings.GetParkingsWithSpacesAsync();
@@ -393,7 +400,7 @@ namespace Parkly_Backend.Services
 
             if (arrival >= departure)
             {
-                return ApiResponse<List<RecommendParkingDTO>>.Failure("Departure time must be after arrival time.");
+                return ApiResponse<RecommendParkingPageDTO>.Failure("Departure time must be after arrival time.");
             }
 
             var parkingIds = activeParkings.Select(p => p.ParkingId).ToList();
@@ -520,10 +527,16 @@ namespace Parkly_Backend.Services
                 scoredParkings.Add((parking, score, reason, finalDistance, isOpenNow, availableSpaces.Count, activeSpaces.Count, minRate, avgRating, totalReviews));
             }
 
-            var sorted = scoredParkings
+            var ordered = scoredParkings
                 .OrderByDescending(p => p.Score)
                 .ThenBy(p => p.Distance ?? double.MaxValue)
-                .Take(query.Limit)
+                .ToList();
+
+            var requestedPageSize = query.Limit.HasValue && query.Limit.Value > 0 ? query.Limit.Value : (query.PageSize > 0 ? query.PageSize : 10);
+            var (pagedScored, page, pageSize, totalItems, totalPages, hasNextPage, hasPreviousPage) =
+                PaginationHelper.Paginate(ordered, query.Page, requestedPageSize);
+
+            var pagedResults = pagedScored
                 .Select(p => new RecommendParkingDTO
                 {
                     ParkingId = p.Parking.ParkingId,
@@ -544,7 +557,8 @@ namespace Parkly_Backend.Services
                     RecommendationReason = p.Reason
                 }).ToList();
 
-            return ApiResponse<List<RecommendParkingDTO>>.Success("Recommendations retrieved successfully.", sorted);
+            var response = new RecommendParkingPageDTO(pagedResults, totalItems, page, pageSize);
+            return ApiResponse<RecommendParkingPageDTO>.Success("Recommendations retrieved successfully.", response);
         }
     }
 }

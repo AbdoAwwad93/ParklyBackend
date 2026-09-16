@@ -115,13 +115,20 @@ namespace Parkly_Backend.Controllers
         /// <param name="query">The search filter parameters.</param>
         /// <returns>An <see cref="ApiResponse{T}"/> containing the matching parkings with availability details.</returns>
         /// <response code="200">Search completed successfully.</response>
+        /// <response code="400">Invalid search parameters.</response>
         [HttpGet("search")]
         [AllowAnonymous]
-        [ProducesResponseType(typeof(ApiResponse<List<SearchParkingDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<SearchParkingPageDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Search([FromQuery] SearchParkingQuery query)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request parameters.", ModelState));
+            }
+
             var result = await _service.SearchAsync(query);
-            return Ok(result);
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 
         /// <summary>Finds nearby parking facilities relative to user coordinates, sorted by proximity.</summary>
@@ -131,7 +138,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="400">Invalid parameters or coordinates.</response>
         [HttpGet("nearby")]
         [AllowAnonymous]
-        [ProducesResponseType(typeof(ApiResponse<List<NearbyParkingDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<NearbyParkingPageDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetNearby([FromQuery] NearbyParkingQuery query)
         {
@@ -152,7 +159,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="401">User is not authenticated.</response>
         [HttpGet("recommend")]
         [Authorize]
-        [ProducesResponseType(typeof(ApiResponse<List<RecommendParkingDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<RecommendParkingPageDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Recommend([FromQuery] RecommendParkingQuery query)
