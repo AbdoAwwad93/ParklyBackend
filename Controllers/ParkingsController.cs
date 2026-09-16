@@ -53,18 +53,35 @@ namespace Parkly_Backend.Controllers
             return Ok(result);
         }
 
-        /// <summary>Returns a single parking facility by id.</summary>
+        /// <summary>Returns a single parking facility by id with optional distance calculation relative to user coordinates.</summary>
         /// <param name="id">The id of the parking facility.</param>
+        /// <param name="latitude">Optional user latitude coordinate for distance calculation (-90 to 90).</param>
+        /// <param name="longitude">Optional user longitude coordinate for distance calculation (-180 to 180).</param>
         /// <returns>An <see cref="ApiResponse{T}"/> containing the parking facility.</returns>
         /// <response code="200">Parking retrieved successfully.</response>
+        /// <response code="400">Invalid coordinates.</response>
         /// <response code="404">Parking not found.</response>
         [HttpGet("{id:guid}")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(ApiResponse<ParkingResponseDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetById(Guid id)
+        public async Task<IActionResult> GetById(Guid id, [FromQuery] decimal? latitude = null, [FromQuery] decimal? longitude = null)
         {
-            var result = await _service.GetByIdAsync(id);
+            if (latitude.HasValue && (latitude < -90 || latitude > 90))
+            {
+                return BadRequest(ApiResponse.Failure("Latitude must be between -90 and 90."));
+            }
+            if (longitude.HasValue && (longitude < -180 || longitude > 180))
+            {
+                return BadRequest(ApiResponse.Failure("Longitude must be between -180 and 180."));
+            }
+            if ((latitude.HasValue && !longitude.HasValue) || (!latitude.HasValue && longitude.HasValue))
+            {
+                return BadRequest(ApiResponse.Failure("Both latitude and longitude must be provided together."));
+            }
+
+            var result = await _service.GetByIdAsync(id, latitude, longitude);
             return result.IsSuccess ? Ok(result) : NotFound(result);
         }
 

@@ -36,7 +36,7 @@ namespace Parkly_Backend.Services
             return ApiResponse<List<ParkingResponseDTO>>.Success("Owned parkings retrieved successfully.", response);
         }
 
-        public async Task<ApiResponse<ParkingResponseDTO>> GetByIdAsync(Guid id)
+        public async Task<ApiResponse<ParkingResponseDTO>> GetByIdAsync(Guid id, decimal? latitude = null, decimal? longitude = null)
         {
             var parking = await _unitOfWork.Parkings.GetByIdWithSpacesAsync(id);
             if (parking == null)
@@ -45,6 +45,11 @@ namespace Parkly_Backend.Services
             }
 
             var response = _mapper.Map<ParkingResponseDTO>(parking);
+            if (latitude.HasValue && longitude.HasValue)
+            {
+                response.DistanceKm = GeoHelper.DistanceKm(parking.Latitude, parking.Longitude, latitude.Value, longitude.Value);
+            }
+
             return ApiResponse<ParkingResponseDTO>.Success("Parking retrieved successfully.", response);
         }
 
