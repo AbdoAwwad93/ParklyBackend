@@ -10,7 +10,7 @@ namespace Parkly_Backend.Controllers
 {
     [Route("api/reports")]
     [ApiController]
-    [Authorize(Roles = "ParkingOwner")]
+    [Authorize(Roles = "ParkingOwner,Admin")]
     [Produces("application/json")]
     public class ReportsController : ControllerBase
     {
