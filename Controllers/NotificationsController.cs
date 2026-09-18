@@ -10,18 +10,18 @@ namespace Parkly_Backend.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "ParkingOwner")]
+    [Authorize]
     [Produces("application/json")]
     public class NotificationsController : ControllerBase
     {
         private readonly INotificationService _service;
         public NotificationsController(INotificationService service) => _service = service;
 
-        /// <summary>Returns paginated notifications for the authenticated owner.</summary>
+        /// <summary>Returns paginated notifications for the authenticated user.</summary>
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<NotificationPageDTO>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAll([FromQuery] NotificationType? type, [FromQuery] bool? isRead, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
-            => Ok(await _service.GetForOwnerAsync(User.GetRequiredUserId(), type, isRead, page, pageSize));
+            => Ok(await _service.GetForUserAsync(User.GetRequiredUserId(), type, isRead, page, pageSize));
 
         /// <summary>Returns total and unread notification counts for the notification bell and category cards.</summary>
         [HttpGet("summary")]

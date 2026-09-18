@@ -6,10 +6,11 @@ namespace Parkly_Backend.Interfaces
 {
     public interface INotificationService
     {
+        Task<ApiResponse<NotificationPageDTO>> GetForUserAsync(Guid userId, NotificationType? type, bool? isRead, int page, int pageSize);
         Task<ApiResponse<NotificationPageDTO>> GetForOwnerAsync(Guid ownerId, NotificationType? type, bool? isRead, int page, int pageSize);
-        Task<ApiResponse<NotificationSummaryDTO>> GetSummaryAsync(Guid ownerId);
-        Task<ApiResponse> MarkReadAsync(Guid ownerId, Guid notificationId);
-        Task<ApiResponse> MarkAllReadAsync(Guid ownerId);
+        Task<ApiResponse<NotificationSummaryDTO>> GetSummaryAsync(Guid userId);
+        Task<ApiResponse> MarkReadAsync(Guid userId, Guid notificationId);
+        Task<ApiResponse> MarkAllReadAsync(Guid userId);
         Task CreateAsync(Guid recipientUserId, NotificationType type, string title, string message,
             Guid? parkingId = null, Guid? reservationId = null, Guid? spaceId = null);
     }
