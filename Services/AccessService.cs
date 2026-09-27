@@ -260,6 +260,16 @@ namespace Parkly_Backend.Services
 
             await _notificationService.CreateAsync(parking.OwnerId, NotificationType.Update, title, message,
                 parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
+
+            var driverTitle = scanType == ScanType.Entry
+                ? $"Check-in Confirmed — {parking.Name}"
+                : $"Check-out Completed — {parking.Name}";
+            var driverMessage = scanType == ScanType.Entry
+                ? $"You checked in to spot {reservation.ParkingSpace.SpotNumber} at {parking.Name} at {timestamp:t}."
+                : $"You checked out of spot {reservation.ParkingSpace.SpotNumber} at {parking.Name} at {timestamp:t}. Thank you!";
+
+            await _notificationService.CreateAsync(reservation.UserId, NotificationType.Update, driverTitle, driverMessage,
+                parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
         }
 
         private static CheckOutResponseDTO BuildCheckOutResponse(Reservation reservation, DateTime exitTime)

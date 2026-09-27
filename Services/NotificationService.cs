@@ -12,11 +12,14 @@ namespace Parkly_Backend.Services
         private readonly IUnitOfWork _unitOfWork;
         public NotificationService(IUnitOfWork unitOfWork) => _unitOfWork = unitOfWork;
 
-        public async Task<ApiResponse<NotificationPageDTO>> GetForOwnerAsync(Guid ownerId, NotificationType? type, bool? isRead, int page, int pageSize)
+        public Task<ApiResponse<NotificationPageDTO>> GetForOwnerAsync(Guid ownerId, NotificationType? type, bool? isRead, int page, int pageSize)
+            => GetForUserAsync(ownerId, type, isRead, page, pageSize);
+
+        public async Task<ApiResponse<NotificationPageDTO>> GetForUserAsync(Guid userId, NotificationType? type, bool? isRead, int page, int pageSize)
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
-            var (items, totalCount) = await _unitOfWork.Notifications.GetForRecipientAsync(ownerId, type, isRead, page, pageSize);
+            var (items, totalCount) = await _unitOfWork.Notifications.GetForRecipientAsync(userId, type, isRead, page, pageSize);
             return ApiResponse<NotificationPageDTO>.Success("Notifications retrieved successfully.", new NotificationPageDTO
             {
                 Items = items.Select(ToDto).ToList(), Page = page, PageSize = pageSize,
@@ -24,9 +27,9 @@ namespace Parkly_Backend.Services
             });
         }
 
-        public async Task<ApiResponse<NotificationSummaryDTO>> GetSummaryAsync(Guid ownerId)
+        public async Task<ApiResponse<NotificationSummaryDTO>> GetSummaryAsync(Guid userId)
         {
-            var grouped = await _unitOfWork.Notifications.GetSummaryAsync(ownerId);
+            var grouped = await _unitOfWork.Notifications.GetSummaryAsync(userId);
             var byType = Enum.GetValues<NotificationType>().Select(type =>
             {
                 var count = grouped.FirstOrDefault(x => x.Type == type);
@@ -36,9 +39,9 @@ namespace Parkly_Backend.Services
             { UnreadCount = byType.Sum(x => x.UnreadCount), ByType = byType });
         }
 
-        public async Task<ApiResponse> MarkReadAsync(Guid ownerId, Guid notificationId)
+        public async Task<ApiResponse> MarkReadAsync(Guid userId, Guid notificationId)
         {
-            var notification = await _unitOfWork.Notifications.FirstOrDefaultAsync(n => n.NotificationId == notificationId && n.RecipientUserId == ownerId);
+            var notification = await _unitOfWork.Notifications.FirstOrDefaultAsync(n => n.NotificationId == notificationId && n.RecipientUserId == userId);
             if (notification == null) return ApiResponse.Failure("Notification not found.");
             if (!notification.IsRead)
             {
@@ -49,9 +52,9 @@ namespace Parkly_Backend.Services
             return ApiResponse.Success("Notification marked as read.");
         }
 
-        public async Task<ApiResponse> MarkAllReadAsync(Guid ownerId)
+        public async Task<ApiResponse> MarkAllReadAsync(Guid userId)
         {
-            await _unitOfWork.Notifications.MarkAllReadAsync(ownerId, DateTime.UtcNow);
+            await _unitOfWork.Notifications.MarkAllReadAsync(userId, DateTime.UtcNow);
             return ApiResponse.Success("All notifications marked as read.");
         }
 

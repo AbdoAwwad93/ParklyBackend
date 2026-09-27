@@ -136,6 +136,7 @@ namespace Parkly_Backend.Services
                 reservation.TotalPrice = await _pricingService.CalculateTotalPriceAsync(reservation.SpaceId, dto.ArrivalTime, dto.DepartureTime);
 
                 await _unitOfWork.SaveChangesAsync();
+                await CreateReservationNotificationAsync(reservation.ReservationId, NotificationType.Update);
                 await _unitOfWork.CommitTransactionAsync();
 
                 _logger.LogInformation("Reservation {ReservationId} updated successfully by User {UserId}", reservationId, userId);
@@ -246,15 +247,43 @@ namespace Parkly_Backend.Services
             var customerName = string.IsNullOrWhiteSpace(reservation.User?.FullName) ? "A customer" : reservation.User.FullName;
             var parking = reservation.ParkingSpace.Parking;
             var bookingReference = $"PK-{reservation.ReservationId.ToString("N")[^4..].ToUpperInvariant()}";
-            var title = type == NotificationType.Booking
-                ? $"New Booking — {parking.Name}"
-                : $"Cancellation — Booking {bookingReference}";
-            var message = type == NotificationType.Booking
-                ? $"{customerName} reserved {reservation.ParkingSpace.SpotNumber} for {reservation.ArrivalTime:g}–{reservation.DepartureTime:t}. Payment ${reservation.TotalPrice:F2} received."
-                : $"{customerName} cancelled their reservation for {reservation.ParkingSpace.SpotNumber}."
-                    + $" Booking {bookingReference} is now cancelled.";
+
+            var title = type switch
+            {
+                NotificationType.Booking => $"New Booking — {parking.Name}",
+                NotificationType.Cancellation => $"Cancellation — Booking {bookingReference}",
+                NotificationType.Update => $"Booking Updated — {parking.Name}",
+                _ => $"Booking Update — {parking.Name}"
+            };
+
+            var message = type switch
+            {
+                NotificationType.Booking => $"{customerName} reserved {reservation.ParkingSpace.SpotNumber} for {reservation.ArrivalTime:g}–{reservation.DepartureTime:t}. Payment ${reservation.TotalPrice:F2} received.",
+                NotificationType.Cancellation => $"{customerName} cancelled their reservation for {reservation.ParkingSpace.SpotNumber}. Booking {bookingReference} is now cancelled.",
+                NotificationType.Update => $"{customerName} updated their reservation for {reservation.ParkingSpace.SpotNumber} to {reservation.ArrivalTime:g}–{reservation.DepartureTime:t}.",
+                _ => $"{customerName} updated booking {bookingReference}."
+            };
 
             await _notificationService.CreateAsync(parking.OwnerId, type, title, message,
+                parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
+
+            var driverTitle = type switch
+            {
+                NotificationType.Booking => $"Booking Confirmed — {parking.Name}",
+                NotificationType.Cancellation => $"Booking Cancelled — {parking.Name}",
+                NotificationType.Update => $"Booking Updated — {parking.Name}",
+                _ => $"Booking Update — {parking.Name}"
+            };
+
+            var driverMessage = type switch
+            {
+                NotificationType.Booking => $"Your reservation for spot {reservation.ParkingSpace.SpotNumber} at {parking.Name} from {reservation.ArrivalTime:g} to {reservation.DepartureTime:t} is confirmed. Booking reference: {bookingReference}.",
+                NotificationType.Cancellation => $"Your reservation for spot {reservation.ParkingSpace.SpotNumber} at {parking.Name} ({bookingReference}) has been cancelled.",
+                NotificationType.Update => $"Your reservation for spot {reservation.ParkingSpace.SpotNumber} at {parking.Name} was updated to {reservation.ArrivalTime:g}–{reservation.DepartureTime:t}.",
+                _ => $"Your reservation at {parking.Name} ({bookingReference}) has been updated."
+            };
+
+            await _notificationService.CreateAsync(reservation.UserId, type, driverTitle, driverMessage,
                 parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
         }
 

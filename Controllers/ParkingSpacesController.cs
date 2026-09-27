@@ -113,7 +113,7 @@ namespace Parkly_Backend.Controllers
 
         /// <summary>Returns the parking owner's spaces with summary cards, filters, search, and paging for Space Management.</summary>
         [HttpGet("owner/management")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<OwnerSpacesPageDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -132,7 +132,7 @@ namespace Parkly_Backend.Controllers
 
         /// <summary>Returns location tabs, summary, occupancy breakdown, and spaces grouped by floor for Space Availability.</summary>
         [HttpGet("owner/availability")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<OwnerAvailabilityDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -145,7 +145,7 @@ namespace Parkly_Backend.Controllers
 
         /// <summary>Toggles whether a parking space is active/bookable from the Space Availability screen.</summary>
         [HttpPatch("owner/{spaceId:guid}/availability")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<OwnerSpaceListItemDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -165,7 +165,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="401">Missing or invalid JWT token.</response>
         /// <response code="403">The authenticated user is not a parking owner.</response>
         [HttpPost]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<ParkingSpaceResponseDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -191,7 +191,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="401">Missing or invalid JWT token.</response>
         /// <response code="403">The authenticated user is not a parking owner.</response>
         [HttpPut("{spaceId:guid}")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<ParkingSpaceResponseDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -216,7 +216,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="401">Missing or invalid JWT token.</response>
         /// <response code="403">The authenticated user is not a parking owner.</response>
         [HttpDelete("{spaceId:guid}")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

@@ -179,7 +179,7 @@ namespace Parkly_Backend.Controllers
         /// <param name="page">1-based page number.</param>
         /// <param name="pageSize">Number of items per page, clamped to 1-100.</param>
         [HttpGet("owner")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<OwnerReservationsPageDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -193,7 +193,7 @@ namespace Parkly_Backend.Controllers
         /// <summary>Retrieves a single owner-owned reservation row for the reservation details action.</summary>
         /// <param name="id">The reservation id.</param>
         [HttpGet("owner/{id:guid}")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<OwnerReservationListItemDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

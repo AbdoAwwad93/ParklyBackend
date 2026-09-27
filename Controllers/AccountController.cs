@@ -321,7 +321,7 @@ namespace Parkly_Backend.Controllers
 
         [HttpPut("settings/business")]
         [Tags("4. User Profile")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<BusinessSettingsDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -344,7 +344,7 @@ namespace Parkly_Backend.Controllers
 
         [HttpPut("settings/notifications")]
         [Tags("4. User Profile")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<NotificationSettingsDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

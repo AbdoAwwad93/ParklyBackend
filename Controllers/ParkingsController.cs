@@ -42,7 +42,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="401">Missing or invalid JWT token.</response>
         /// <response code="403">The authenticated user is not a parking owner.</response>
         [HttpGet("mine")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<List<ParkingResponseDTO>>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -93,7 +93,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="401">Missing or invalid JWT token.</response>
         /// <response code="403">The authenticated user is not a parking owner.</response>
         [HttpGet("{id:guid}/details")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<LocationDetailsDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -199,7 +199,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="401">Missing or invalid JWT token.</response>
         /// <response code="403">The authenticated user is not a parking owner.</response>
         [HttpPost]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<ParkingResponseDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -226,7 +226,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="403">The authenticated user is not a parking owner.</response>
         /// <response code="404">Parking not found.</response>
         [HttpPut("{id:guid}")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse<ParkingResponseDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -253,7 +253,7 @@ namespace Parkly_Backend.Controllers
         /// <response code="403">The authenticated user is not a parking owner.</response>
         /// <response code="404">Parking not found.</response>
         [HttpDelete("{id:guid}")]
-        [Authorize(Roles = "ParkingOwner")]
+        [Authorize(Roles = "ParkingOwner,Admin")]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
