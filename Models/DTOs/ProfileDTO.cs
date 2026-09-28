@@ -13,5 +13,7 @@ namespace Parkly_Backend.Models.DTOs
         public string Role { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public string? ProfilePictureUrl { get; set; }
+        public double HoursParked { get; set; }
+        public int Bookings { get; set; }
     }
 }

@@ -376,8 +376,45 @@ namespace Parkly_Backend.Services
             }
 
             var profile = _mapper.Map<ProfileDTO>(user);
+            await PopulateProfileUsageAsync(userId, profile);
 
             return ApiResponse<ProfileDTO>.Success("Profile retrieved successfully.", profile);
+        }
+
+        private async Task PopulateProfileUsageAsync(Guid userId, ProfileDTO profile)
+        {
+            var reservations = await _unitOfWork.Reservations.Query()
+                .Where(reservation => reservation.UserId == userId)
+                .Include(reservation => reservation.AccessLogs)
+                .ToListAsync();
+
+            profile.Bookings = reservations.Count;
+
+            var now = DateTime.UtcNow;
+            var hoursParked = 0d;
+            foreach (var reservation in reservations)
+            {
+                DateTime? entryTime = null;
+                foreach (var accessLog in reservation.AccessLogs.OrderBy(log => log.ScanTimestamp))
+                {
+                    if (accessLog.ScanType == ScanType.Entry)
+                    {
+                        entryTime = accessLog.ScanTimestamp;
+                    }
+                    else if (entryTime.HasValue && accessLog.ScanTimestamp > entryTime.Value)
+                    {
+                        hoursParked += (accessLog.ScanTimestamp - entryTime.Value).TotalHours;
+                        entryTime = null;
+                    }
+                }
+
+                if (reservation.Status == ReservationStatus.CheckedIn && entryTime.HasValue && now > entryTime.Value)
+                {
+                    hoursParked += (now - entryTime.Value).TotalHours;
+                }
+            }
+
+            profile.HoursParked = Math.Round(hoursParked, 1);
         }
 
         public async Task<ApiResponse<ProfileDTO>> UpdateProfileAsync(Guid userId, UpdateProfileDTO dto)
@@ -399,6 +436,7 @@ namespace Parkly_Backend.Services
             }
 
             var profile = _mapper.Map<ProfileDTO>(user);
+            await PopulateProfileUsageAsync(userId, profile);
 
             return ApiResponse<ProfileDTO>.Success("Profile updated successfully.", profile);
         }
