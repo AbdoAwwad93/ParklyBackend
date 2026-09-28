@@ -85,6 +85,26 @@ namespace Parkly_Backend.Controllers
             return result.IsSuccess ? Ok(result) : NotFound(result);
         }
 
+        /// <summary>Returns hourly arrival times with at least one available space for the selected date and duration.</summary>
+        /// <param name="parkingId">The id of the parking facility.</param>
+        /// <param name="date">The local calendar date to check.</param>
+        /// <param name="durationHours">The length of the stay in whole hours.</param>
+        [HttpGet("{parkingId:guid}/arrival-times")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<List<AvailableArrivalTimeDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetAvailableArrivalTimes(Guid parkingId, [FromQuery] DateOnly date, [FromQuery] int durationHours)
+        {
+            if (date == default || durationHours < 1 || durationHours > 24)
+            {
+                return BadRequest(ApiResponse.Failure("A valid date and a duration between 1 and 24 hours are required."));
+            }
+
+            var arrivalTimes = await _availabilityService.GetAvailableArrivalTimesAsync(parkingId, date, durationHours);
+            var response = ApiResponse<List<AvailableArrivalTimeDTO>>.Success("Available arrival times retrieved successfully.", arrivalTimes);
+            return Ok(response);
+        }
+
         /// <summary>Returns aggregated details for a single parking location owned by the authenticated parking owner (Location Details modal).</summary>
         /// <param name="id">The id of the parking facility.</param>
         /// <returns>An <see cref="ApiResponse{T}"/> containing total/available/occupied/reserved counts, base price, rating, monthly revenue and status.</returns>

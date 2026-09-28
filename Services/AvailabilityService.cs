@@ -2,6 +2,7 @@ using Parkly_Backend.Common.Helpers;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
+using Parkly_Backend.Models.DTOs;
 using Parkly_Backend.Models.Enums;
 using System.Globalization;
 
@@ -101,6 +102,52 @@ namespace Parkly_Backend.Services
             }
 
             return result;
+        }
+
+        public async Task<List<AvailableArrivalTimeDTO>> GetAvailableArrivalTimesAsync(Guid parkingId, DateOnly date, int durationHours)
+        {
+            if (durationHours < 1 || durationHours > 24)
+            {
+                throw new ArgumentOutOfRangeException(nameof(durationHours), "Duration must be between 1 and 24 hours.");
+            }
+
+            var spaces = await _unitOfWork.ParkingSpaces.GetActiveSpacesWithRulesForParkingsAsync(new[] { parkingId });
+            if (spaces.Count == 0)
+            {
+                return new List<AvailableArrivalTimeDTO>();
+            }
+
+            var dayStart = date.ToDateTime(TimeOnly.MinValue);
+            var reservations = await _unitOfWork.Reservations.GetOverlappingReservationsForSpacesAsync(
+                spaces.Select(space => space.SpaceId),
+                dayStart,
+                dayStart.AddDays(1).AddHours(durationHours));
+
+            var availableTimes = new List<AvailableArrivalTimeDTO>();
+            for (var hour = 0; hour < 24; hour++)
+            {
+                var arrival = dayStart.AddHours(hour);
+                var departure = arrival.AddHours(durationHours);
+                var availableSpaceCount = spaces.Count(space =>
+                    space.Status == SpaceStatus.Available &&
+                    !RulesOverlapBlackout(space.Parking.PricingRules, arrival, departure) &&
+                    !OutsideOperatingHours(space.Parking.OperatingHours, arrival, departure) &&
+                    !reservations.Any(reservation =>
+                        reservation.SpaceId == space.SpaceId &&
+                        reservation.ArrivalTime < departure &&
+                        reservation.DepartureTime > arrival));
+
+                if (availableSpaceCount > 0)
+                {
+                    availableTimes.Add(new AvailableArrivalTimeDTO
+                    {
+                        ArrivalTime = arrival,
+                        AvailableSpaces = availableSpaceCount
+                    });
+                }
+            }
+
+            return availableTimes;
         }
 
         private async Task<bool> HasOverlappingReservationAsync(Guid spaceId, DateTime arrival, DateTime departure, Guid? excludeReservationId)
