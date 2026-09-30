@@ -72,21 +72,37 @@ namespace Parkly_Backend
                 });
             });
 
+            var firebaseBase64 = Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT");
             var firebaseJson = Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_JSON");
             var firebaseCredPath = Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_PATH");
-            if (!string.IsNullOrEmpty(firebaseJson))
+            try
             {
-                FirebaseApp.Create(new AppOptions
+                if (!string.IsNullOrEmpty(firebaseBase64))
                 {
-                    Credential = GoogleCredential.FromJson(firebaseJson)
-                });
+                    var json = Encoding.UTF8.GetString(Convert.FromBase64String(firebaseBase64));
+                    FirebaseApp.Create(new AppOptions
+                    {
+                        Credential = GoogleCredential.FromJson(json)
+                    });
+                }
+                else if (!string.IsNullOrEmpty(firebaseJson))
+                {
+                    FirebaseApp.Create(new AppOptions
+                    {
+                        Credential = GoogleCredential.FromJson(firebaseJson)
+                    });
+                }
+                else if (!string.IsNullOrEmpty(firebaseCredPath) && File.Exists(firebaseCredPath))
+                {
+                    FirebaseApp.Create(new AppOptions
+                    {
+                        Credential = GoogleCredential.FromFile(firebaseCredPath)
+                    });
+                }
             }
-            else if (!string.IsNullOrEmpty(firebaseCredPath) && File.Exists(firebaseCredPath))
+            catch (Exception ex)
             {
-                FirebaseApp.Create(new AppOptions
-                {
-                    Credential = GoogleCredential.FromFile(firebaseCredPath)
-                });
+                Console.WriteLine($"Warning: Firebase initialization failed: {ex.Message}. Push notifications will be disabled.");
             }
 
             // Add services to the container.
