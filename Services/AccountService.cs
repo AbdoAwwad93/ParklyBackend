@@ -893,5 +893,18 @@ namespace Parkly_Backend.Services
             SpaceAlerts = owner.NotifySpaceAlerts,
             MarketingUpdates = owner.NotifyMarketingUpdates
         };
+
+        public async Task<ApiResponse> RegisterFcmTokenAsync(Guid userId, RegisterFcmTokenDTO dto)
+        {
+            await _unitOfWork.UserFcmTokens.UpsertAsync(userId, dto.Token, dto.DeviceId, dto.Platform);
+            await _unitOfWork.SaveChangesAsync();
+            return ApiResponse.Success("FCM token registered successfully.");
+        }
+
+        public async Task<ApiResponse> UnregisterFcmTokenAsync(Guid userId, UnregisterFcmTokenDTO dto)
+        {
+            await _unitOfWork.UserFcmTokens.DeleteByTokenAsync(userId, dto.Token);
+            return ApiResponse.Success("FCM token unregistered successfully.");
+        }
     }
 }

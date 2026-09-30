@@ -17,6 +17,8 @@ using Parkly_Backend.Mappings;
 using System;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.OpenApi;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 
 namespace Parkly_Backend
 {
@@ -70,6 +72,23 @@ namespace Parkly_Backend
                 });
             });
 
+            var firebaseJson = Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_JSON");
+            var firebaseCredPath = Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_PATH");
+            if (!string.IsNullOrEmpty(firebaseJson))
+            {
+                FirebaseApp.Create(new AppOptions
+                {
+                    Credential = GoogleCredential.FromJson(firebaseJson)
+                });
+            }
+            else if (!string.IsNullOrEmpty(firebaseCredPath) && File.Exists(firebaseCredPath))
+            {
+                FirebaseApp.Create(new AppOptions
+                {
+                    Credential = GoogleCredential.FromFile(firebaseCredPath)
+                });
+            }
+
             // Add services to the container.
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseNpgsql(connectionString));
@@ -120,6 +139,7 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IStorageService, SupabaseStorageService>();
             builder.Services.AddScoped<IDashboardService, DashboardService>();
             builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddScoped<IFcmPushService, FcmPushService>();
             builder.Services.AddScoped<IReportsService, ReportsService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
 

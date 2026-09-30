@@ -491,5 +491,46 @@ namespace Parkly_Backend.Controllers
             return result.IsSuccess ? Ok(result) : BadRequest(result);
         }
 
+        /// <summary>Registers or refreshes an FCM device token for push notifications. Call on app launch and whenever the FCM token refreshes.</summary>
+        /// <param name="dto">The FCM token payload.</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating success.</returns>
+        /// <response code="200">Token registered successfully.</response>
+        /// <response code="400">Validation failed.</response>
+        [HttpPost("fcm-token")]
+        [Authorize]
+        [Tags("2. Authentication")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> RegisterFcmToken([FromBody] RegisterFcmTokenDTO dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+            var userId = User.GetRequiredUserId();
+            var result = await _service.RegisterFcmTokenAsync(userId, dto);
+            return Ok(result);
+        }
+
+        /// <summary>Unregisters an FCM device token. Call on logout to stop receiving push notifications on this device.</summary>
+        /// <param name="dto">The FCM token to remove.</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating success.</returns>
+        /// <response code="200">Token unregistered successfully.</response>
+        [HttpDelete("fcm-token")]
+        [Authorize]
+        [Tags("2. Authentication")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        public async Task<IActionResult> UnregisterFcmToken([FromBody] UnregisterFcmTokenDTO dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+            var userId = User.GetRequiredUserId();
+            var result = await _service.UnregisterFcmTokenAsync(userId, dto);
+            return Ok(result);
+        }
+
     }
 }
+

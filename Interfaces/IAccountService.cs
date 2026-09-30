@@ -30,5 +30,7 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse<List<ActiveSessionDTO>>> GetActiveSessionsAsync(Guid userId);
         Task<ApiResponse> RevokeSessionAsync(Guid userId, Guid sessionId);
         Task<ApiResponse> DeleteAccountAsync(Guid userId, DeleteAccountDTO dto);
+        Task<ApiResponse> RegisterFcmTokenAsync(Guid userId, RegisterFcmTokenDTO dto);
+        Task<ApiResponse> UnregisterFcmTokenAsync(Guid userId, UnregisterFcmTokenDTO dto);
     }
 }

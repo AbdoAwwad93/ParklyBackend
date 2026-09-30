@@ -27,6 +27,7 @@ namespace Parkly_Backend.Data
         public DbSet<SavedPlace> SavedPlaces { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<SpaceTypePricing> SpaceTypePricings { get; set; }
+        public DbSet<UserFcmToken> UserFcmTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -44,6 +45,11 @@ namespace Parkly_Backend.Data
                 .HasIndex(x => new { x.ParkingId, x.SpaceType })
                 .IsUnique()
                 .HasDatabaseName("IX_SpaceTypePricings_ParkingId_SpaceType");
+
+            builder.Entity<UserFcmToken>()
+                .HasIndex(t => new { t.UserId, t.Token })
+                .IsUnique()
+                .HasDatabaseName("IX_UserFcmTokens_UserId_Token");
         }
     }
 }

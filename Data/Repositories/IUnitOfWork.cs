@@ -19,6 +19,7 @@ namespace Parkly_Backend.Data.Repositories
         ITransactionsRepository Transactions { get; }
         INotificationsRepository Notifications { get; }
         ISpaceTypePricingRepository SpaceTypePricings { get; }
+        IUserFcmTokensRepository UserFcmTokens { get; }
 
         Task<int> SaveChangesAsync();
         Task<IDbContextTransaction> BeginTransactionAsync();

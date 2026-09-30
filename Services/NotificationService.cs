@@ -10,7 +10,15 @@ namespace Parkly_Backend.Services
     public class NotificationService : INotificationService
     {
         private readonly IUnitOfWork _unitOfWork;
-        public NotificationService(IUnitOfWork unitOfWork) => _unitOfWork = unitOfWork;
+        private readonly IFcmPushService _pushService;
+        private readonly ILogger<NotificationService> _logger;
+
+        public NotificationService(IUnitOfWork unitOfWork, IFcmPushService pushService, ILogger<NotificationService> logger)
+        {
+            _unitOfWork = unitOfWork;
+            _pushService = pushService;
+            _logger = logger;
+        }
 
         public Task<ApiResponse<NotificationPageDTO>> GetForOwnerAsync(Guid ownerId, NotificationType? type, bool? isRead, int page, int pageSize)
             => GetForUserAsync(ownerId, type, isRead, page, pageSize);
@@ -66,6 +74,25 @@ namespace Parkly_Backend.Services
                 ParkingId = parkingId, ReservationId = reservationId, SpaceId = spaceId
             });
             await _unitOfWork.SaveChangesAsync();
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _pushService.SendToUserAsync(recipientUserId, title, message,
+                        new Dictionary<string, string>
+                        {
+                            ["notificationType"] = type.ToString(),
+                            ["parkingId"] = parkingId?.ToString() ?? "",
+                            ["reservationId"] = reservationId?.ToString() ?? "",
+                            ["spaceId"] = spaceId?.ToString() ?? ""
+                        });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Fire-and-forget FCM push failed for user {UserId}.", recipientUserId);
+                }
+            });
         }
 
         private static NotificationDTO ToDto(Notification notification) => new()
@@ -79,3 +106,4 @@ namespace Parkly_Backend.Services
         };
     }
 }
+
