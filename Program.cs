@@ -154,7 +154,6 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IReviewsService, ReviewsService>();
             builder.Services.AddScoped<IStorageService, SupabaseStorageService>();
             builder.Services.AddScoped<IDashboardService, DashboardService>();
-            builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
             builder.Services.AddScoped<INotificationService, NotificationService>();
             builder.Services.AddScoped<IFcmPushService, FcmPushService>();
             builder.Services.AddScoped<IReportsService, ReportsService>();
