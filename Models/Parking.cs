@@ -27,6 +27,7 @@ namespace Parkly_Backend.Models
         public double AverageRating { get; set; }
         public int TotalReviews { get; set; }
         public List<ParkingFeature> Features { get; set; } = new List<ParkingFeature>();
+        public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
         public List<ParkingSpace> ParkingSpaces { get; set; } = new List<ParkingSpace>();
         public List<PricingRule> PricingRules { get; set; } = new List<PricingRule>();
     }

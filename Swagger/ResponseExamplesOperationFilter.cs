@@ -24,7 +24,7 @@ public class ResponseExamplesOperationFilter : IOperationFilter
                 continue;
             }
 
-            if (!kvp.Value.Content.TryGetValue("application/json", out var media))
+            if (kvp.Value?.Content == null || !kvp.Value.Content.TryGetValue("application/json", out var media))
             {
                 continue;
             }

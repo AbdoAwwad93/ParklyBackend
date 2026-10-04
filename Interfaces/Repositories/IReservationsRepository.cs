@@ -25,5 +25,10 @@ namespace Parkly_Backend.Interfaces.Repositories
         Task<decimal> GetOwnerTodayRevenueAsync(Guid ownerId, DateTime todayUtc, DateTime tomorrowUtc);
         Task<List<(decimal TotalPrice, DateTime ArrivalTime)>> GetOwnerRevenueInWindowAsync(Guid ownerId, DateTime windowStart);
         Task<int> GetOwnerCheckingInSoonCountAsync(IEnumerable<Guid> parkingIds, DateTime from, DateTime to);
+        Task<int> GetPlatformCheckedInCountAsync();
+        Task<decimal> GetPlatformTodayRevenueAsync(DateTime todayUtc, DateTime tomorrowUtc);
+        Task<List<(decimal TotalPrice, DateTime ArrivalTime)>> GetPlatformRevenueInWindowAsync(DateTime windowStart);
+        Task<List<(int Count, DateTime ArrivalTime)>> GetPlatformBookingsInWindowAsync(DateTime windowStart);
+        Task<List<Reservation>> GetRecentPlatformBookingsAsync(DateTime since, int take);
     }
 }

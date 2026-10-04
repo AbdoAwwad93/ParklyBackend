@@ -57,5 +57,16 @@ namespace Parkly_Backend.Data.Repositories
                 .Include(p => p.ParkingSpaces)
                 .FirstOrDefaultAsync(p => p.ParkingId == id);
         }
+
+        public async Task<List<Parking>> GetRecentParkingsAsync(DateTime since, int take)
+        {
+            return await _dbSet
+                .Include(p => p.ParkingOwner)
+                    .ThenInclude(o => o.User)
+                .Where(p => p.CreatedAt >= since)
+                .OrderByDescending(p => p.CreatedAt)
+                .Take(take)
+                .ToListAsync();
+        }
     }
 }

@@ -215,5 +215,58 @@ namespace Parkly_Backend.Data.Repositories
                     r.ArrivalTime <= to)
                 .CountAsync();
         }
+
+        public async Task<int> GetPlatformCheckedInCountAsync()
+        {
+            return await _dbSet
+                .Where(r => r.Status == ReservationStatus.CheckedIn)
+                .CountAsync();
+        }
+
+        public async Task<decimal> GetPlatformTodayRevenueAsync(DateTime todayUtc, DateTime tomorrowUtc)
+        {
+            return await _dbSet
+                .Where(r =>
+                    r.Status == ReservationStatus.Completed &&
+                    r.DepartureTime >= todayUtc &&
+                    r.DepartureTime < tomorrowUtc)
+                .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m;
+        }
+
+        public async Task<List<(decimal TotalPrice, DateTime ArrivalTime)>> GetPlatformRevenueInWindowAsync(DateTime windowStart)
+        {
+            var rows = await _dbSet
+                .Where(r =>
+                    r.Status == ReservationStatus.Completed &&
+                    r.ArrivalTime >= windowStart)
+                .Select(r => new { r.TotalPrice, r.ArrivalTime })
+                .ToListAsync();
+
+            return rows.Select(r => (r.TotalPrice, r.ArrivalTime)).ToList();
+        }
+
+        public async Task<List<(int Count, DateTime ArrivalTime)>> GetPlatformBookingsInWindowAsync(DateTime windowStart)
+        {
+            var rows = await _dbSet
+                .Where(r => r.ArrivalTime >= windowStart)
+                .Select(r => new { r.ArrivalTime })
+                .ToListAsync();
+
+            return rows.Select(r => (1, r.ArrivalTime)).ToList();
+        }
+
+        public async Task<List<Reservation>> GetRecentPlatformBookingsAsync(DateTime since, int take)
+        {
+            return await _dbSet
+                .Include(r => r.ParkingSpace)
+                    .ThenInclude(ps => ps.Parking)
+                .Include(r => r.User)
+                .Where(r =>
+                    r.ArrivalTime >= since &&
+                    (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.CheckedIn))
+                .OrderByDescending(r => r.ArrivalTime)
+                .Take(take)
+                .ToListAsync();
+        }
     }
 }
