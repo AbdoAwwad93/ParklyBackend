@@ -21,5 +21,11 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse<PagedResult<AdminDriverListItemDTO>>> GetDriversAsync(string? status, string? search, int page, int pageSize);
         Task<ApiResponse<AdminDriverDetailDTO>> GetDriverByIdAsync(Guid userId);
         Task<ApiResponse> UpdateDriverStatusAsync(Guid userId, string status);
+
+        // 4. Parking Owners Management
+        Task<ApiResponse<AdminOwnerStatsDTO>> GetOwnerStatsAsync();
+        Task<ApiResponse<PagedResult<AdminOwnerListItemDTO>>> GetOwnersAsync(string? status, string? search, int page, int pageSize);
+        Task<ApiResponse<AdminOwnerDetailDTO>> GetOwnerByIdAsync(Guid ownerId);
+        Task<ApiResponse> UpdateOwnerStatusAsync(Guid ownerId, string status);
     }
 }

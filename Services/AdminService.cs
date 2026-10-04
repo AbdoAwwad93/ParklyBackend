@@ -606,7 +606,245 @@ namespace Parkly_Backend.Services
                 return ApiResponse.Success("Driver account activated successfully.");
             }
 
-            return ApiResponse.Failure("Invalid status. Supported values are 'Active' and 'Suspended'.");
+            return ApiResponse.Failure("Invalid status value. Only 'Active' and 'Suspended' are supported.");
+        }
+
+        public async Task<ApiResponse<AdminOwnerStatsDTO>> GetOwnerStatsAsync()
+        {
+            var query = _unitOfWork.ParkingOwners.Query();
+            var totalOwners = await query.CountAsync();
+            var active = await query.CountAsync(o => o.VerificationStatus == VerificationStatus.Verified);
+            var pending = await query.CountAsync(o => o.VerificationStatus == VerificationStatus.Pending);
+            var totalRevenue = await _unitOfWork.Reservations.Query()
+                .Where(r => r.Status == ReservationStatus.Completed)
+                .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m;
+
+            var dto = new AdminOwnerStatsDTO
+            {
+                TotalOwners = totalOwners,
+                Active = active,
+                Pending = pending,
+                TotalRevenue = totalRevenue
+            };
+
+            return ApiResponse<AdminOwnerStatsDTO>.Success("Parking owner statistics retrieved successfully.", dto);
+        }
+
+        public async Task<ApiResponse<PagedResult<AdminOwnerListItemDTO>>> GetOwnersAsync(
+            string? status,
+            string? search,
+            int page,
+            int pageSize)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var query = _unitOfWork.ParkingOwners.Query();
+
+            var normalizedStatus = status?.Trim().ToLowerInvariant();
+            if (!string.IsNullOrEmpty(normalizedStatus) && normalizedStatus != "all")
+            {
+                switch (normalizedStatus)
+                {
+                    case "active":
+                        query = query.Where(o => o.VerificationStatus == VerificationStatus.Verified);
+                        break;
+                    case "pending":
+                        query = query.Where(o => o.VerificationStatus == VerificationStatus.Pending);
+                        break;
+                    case "suspended":
+                        query = query.Where(o => o.VerificationStatus == VerificationStatus.Suspended);
+                        break;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                query = query.Where(o =>
+                    o.CompanyName.ToLower().Contains(term) ||
+                    (o.User != null && o.User.FullName.ToLower().Contains(term)) ||
+                    (o.User != null && o.User.Email != null && o.User.Email.ToLower().Contains(term)) ||
+                    (o.User != null && o.User.PhoneNumber != null && o.User.PhoneNumber.ToLower().Contains(term)));
+            }
+
+            var totalItems = await query.CountAsync();
+
+            var rawOwners = await query
+                .Include(o => o.User)
+                .OrderByDescending(o => o.User.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(o => new
+                {
+                    o.OwnerId,
+                    OwnerName = o.User != null ? o.User.FullName : "Unknown",
+                    Email = o.User != null ? o.User.Email ?? "" : "",
+                    Phone = o.User != null ? o.User.PhoneNumber ?? "" : "",
+                    RegisteredAt = o.User != null ? o.User.CreatedAt : DateTime.MinValue,
+                    o.CompanyName,
+                    o.VerificationStatus,
+                    LocationsCount = o.Parkings.Count(),
+                    TotalSpaces = o.Parkings.SelectMany(p => p.ParkingSpaces).Count(),
+                    TotalRevenue = _unitOfWork.Reservations.Query()
+                        .Where(r => r.ParkingSpace.Parking.OwnerId == o.OwnerId && r.Status == ReservationStatus.Completed)
+                        .Sum(r => (decimal?)r.TotalPrice) ?? 0m
+                })
+                .ToListAsync();
+
+            var dtos = rawOwners.Select(x =>
+            {
+                var statusStr = x.VerificationStatus switch
+                {
+                    VerificationStatus.Verified => "Active",
+                    VerificationStatus.Pending => "Pending",
+                    VerificationStatus.Suspended => "Suspended",
+                    _ => x.VerificationStatus.ToString()
+                };
+
+                return new AdminOwnerListItemDTO
+                {
+                    OwnerId = x.OwnerId,
+                    OwnerName = x.OwnerName,
+                    Initials = ExtractInitials(x.OwnerName),
+                    BusinessName = x.CompanyName,
+                    Email = x.Email,
+                    Phone = x.Phone,
+                    RegisteredAt = x.RegisteredAt,
+                    RegisteredDisplay = "Live Registered",
+                    LocationsCount = x.LocationsCount,
+                    TotalSpaces = x.TotalSpaces,
+                    TotalRevenue = x.TotalRevenue,
+                    Status = statusStr
+                };
+            }).ToList();
+
+            var pagedResult = new PagedResult<AdminOwnerListItemDTO>(dtos, totalItems, page, pageSize);
+            return ApiResponse<PagedResult<AdminOwnerListItemDTO>>.Success("Parking owners retrieved successfully.", pagedResult);
+        }
+
+        public async Task<ApiResponse<AdminOwnerDetailDTO>> GetOwnerByIdAsync(Guid ownerId)
+        {
+            var owner = await _unitOfWork.ParkingOwners.Query()
+                .Include(o => o.User)
+                .Include(o => o.Parkings)
+                    .ThenInclude(p => p.ParkingSpaces)
+                .FirstOrDefaultAsync(o => o.OwnerId == ownerId);
+
+            if (owner == null)
+            {
+                return ApiResponse<AdminOwnerDetailDTO>.Failure("Parking owner not found.");
+            }
+
+            var parkingsList = new List<AdminOwnerParkingDTO>();
+            foreach (var p in owner.Parkings)
+            {
+                var rev = await _unitOfWork.Reservations.Query()
+                    .Where(r => r.ParkingSpace.ParkingId == p.ParkingId && r.Status == ReservationStatus.Completed)
+                    .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m;
+
+                parkingsList.Add(new AdminOwnerParkingDTO
+                {
+                    ParkingId = p.ParkingId,
+                    Name = p.Name,
+                    Address = p.Address,
+                    TotalSpaces = p.ParkingSpaces.Count,
+                    ActiveSpaces = p.ParkingSpaces.Count(s => s.IsActive),
+                    AverageRating = p.AverageRating,
+                    TotalRevenue = rev
+                });
+            }
+
+            var totalRev = parkingsList.Sum(p => p.TotalRevenue);
+            var statusStr = owner.VerificationStatus switch
+            {
+                VerificationStatus.Verified => "Active",
+                VerificationStatus.Pending => "Pending",
+                VerificationStatus.Suspended => "Suspended",
+                _ => owner.VerificationStatus.ToString()
+            };
+
+            var dto = new AdminOwnerDetailDTO
+            {
+                OwnerId = owner.OwnerId,
+                OwnerName = owner.User?.FullName ?? "Unknown",
+                Initials = ExtractInitials(owner.User?.FullName ?? ""),
+                BusinessName = owner.CompanyName,
+                Email = owner.User?.Email ?? string.Empty,
+                Phone = owner.User?.PhoneNumber ?? string.Empty,
+                TaxId = owner.TaxId,
+                StreetAddress = owner.StreetAddress,
+                CityStateZip = owner.CityStateZip,
+                RegisteredAt = owner.User?.CreatedAt ?? DateTime.MinValue,
+                BusinessVerifiedAt = owner.BusinessVerifiedAt,
+                Status = statusStr,
+                LocationsCount = owner.Parkings.Count,
+                TotalSpaces = owner.Parkings.Sum(p => p.ParkingSpaces.Count),
+                TotalRevenue = totalRev,
+                Parkings = parkingsList
+            };
+
+            return ApiResponse<AdminOwnerDetailDTO>.Success("Parking owner details retrieved successfully.", dto);
+        }
+
+        public async Task<ApiResponse> UpdateOwnerStatusAsync(Guid ownerId, string status)
+        {
+            var owner = await _unitOfWork.ParkingOwners.GetOwnerWithUserAsync(ownerId);
+            if (owner == null)
+            {
+                return ApiResponse.Failure("Parking owner not found.");
+            }
+
+            var user = owner.User ?? await _userManager.FindByIdAsync(ownerId.ToString());
+
+            if (status.Equals("Active", StringComparison.OrdinalIgnoreCase))
+            {
+                owner.VerificationStatus = VerificationStatus.Verified;
+                owner.BusinessVerifiedAt ??= DateTime.UtcNow;
+                _unitOfWork.ParkingOwners.Update(owner);
+                await _unitOfWork.SaveChangesAsync();
+
+                if (user != null)
+                {
+                    await _userManager.SetLockoutEndDateAsync(user, null);
+                }
+
+                return ApiResponse.Success("Parking owner status set to Active (Verified).");
+            }
+            else if (status.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                owner.VerificationStatus = VerificationStatus.Pending;
+                _unitOfWork.ParkingOwners.Update(owner);
+                await _unitOfWork.SaveChangesAsync();
+
+                return ApiResponse.Success("Parking owner status set to Pending.");
+            }
+            else if (status.Equals("Suspended", StringComparison.OrdinalIgnoreCase))
+            {
+                owner.VerificationStatus = VerificationStatus.Suspended;
+                _unitOfWork.ParkingOwners.Update(owner);
+                await _unitOfWork.SaveChangesAsync();
+
+                if (user != null)
+                {
+                    await _userManager.SetLockoutEnabledAsync(user, true);
+                    await _userManager.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddYears(100));
+
+                    var tokens = await _unitOfWork.RefreshTokens.Query()
+                        .Where(t => t.UserId == ownerId && !t.IsRevoked)
+                        .ToListAsync();
+                    foreach (var token in tokens)
+                    {
+                        token.IsRevoked = true;
+                        _unitOfWork.RefreshTokens.Update(token);
+                    }
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                return ApiResponse.Success("Parking owner suspended successfully.");
+            }
+
+            return ApiResponse.Failure("Invalid status. Supported values are 'Active', 'Pending', and 'Suspended'.");
         }
 
         private static string FormatTimeAgo(DateTime timestamp, DateTime now)

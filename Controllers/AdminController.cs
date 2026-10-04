@@ -252,5 +252,100 @@ namespace Parkly_Backend.Controllers
 
             return Ok(result);
         }
+
+        /// <summary>Returns aggregated statistics for the 4 header cards on the Parking Owners page (Total Owners, Active, Pending, Total Revenue).</summary>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the parking owner metrics.</returns>
+        /// <response code="200">Statistics retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        [HttpGet("owners/stats")]
+        [ProducesResponseType(typeof(ApiResponse<AdminOwnerStatsDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetOwnerStats()
+        {
+            var result = await _adminService.GetOwnerStatsAsync();
+            return Ok(result);
+        }
+
+        /// <summary>Returns a paginated, filterable, and searchable list of parking owners for the Parking Owners management table.</summary>
+        /// <param name="status">Optional status filter: "all", "active", "pending", or "suspended" (default: "all").</param>
+        /// <param name="search">Optional search term to filter by business name, owner name, email, or phone number.</param>
+        /// <param name="page">1-based page number (default: 1).</param>
+        /// <param name="pageSize">Number of items per page, clamped between 1 and 100 (default: 10).</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the paginated list of parking owners.</returns>
+        /// <response code="200">Parking owners retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        [HttpGet("owners")]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<AdminOwnerListItemDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetOwners(
+            [FromQuery] string? status = "all",
+            [FromQuery] string? search = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var result = await _adminService.GetOwnersAsync(status, search, page, pageSize);
+            return Ok(result);
+        }
+
+        /// <summary>Returns detailed profile information, business verification, and parking locations breakdown for a specific parking owner.</summary>
+        /// <param name="ownerId">The parking owner's user ID.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the owner details.</returns>
+        /// <response code="200">Owner details retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        /// <response code="404">Parking owner not found.</response>
+        [HttpGet("owners/{ownerId}")]
+        [ProducesResponseType(typeof(ApiResponse<AdminOwnerDetailDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetOwnerById(Guid ownerId)
+        {
+            var result = await _adminService.GetOwnerByIdAsync(ownerId);
+            if (!result.IsSuccess)
+            {
+                return NotFound(result);
+            }
+            return Ok(result);
+        }
+
+        /// <summary>Updates the verification status of a parking owner ("Active", "Pending", or "Suspended").</summary>
+        /// <param name="ownerId">The parking owner's user ID.</param>
+        /// <param name="dto">The target status: "Active", "Pending", or "Suspended".</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating the result of the update.</returns>
+        /// <response code="200">Status updated successfully.</response>
+        /// <response code="400">Invalid status value or request body.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        /// <response code="404">Parking owner not found.</response>
+        [HttpPut("owners/{ownerId}/status")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateOwnerStatus(Guid ownerId, [FromBody] UpdateOwnerStatusDTO dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+
+            var result = await _adminService.UpdateOwnerStatusAsync(ownerId, dto.Status);
+            if (!result.IsSuccess)
+            {
+                if (result.Message == "Parking owner not found.")
+                {
+                    return NotFound(result);
+                }
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
     }
 }
