@@ -27,5 +27,11 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse<PagedResult<AdminOwnerListItemDTO>>> GetOwnersAsync(string? status, string? search, int page, int pageSize);
         Task<ApiResponse<AdminOwnerDetailDTO>> GetOwnerByIdAsync(Guid ownerId);
         Task<ApiResponse> UpdateOwnerStatusAsync(Guid ownerId, string status);
+
+        // 5. Parking Locations Management
+        Task<ApiResponse<AdminLocationStatsDTO>> GetLocationStatsAsync();
+        Task<ApiResponse<PagedResult<AdminLocationListItemDTO>>> GetLocationsAsync(string? status, string? search, int page, int pageSize);
+        Task<ApiResponse<AdminLocationDetailDTO>> GetLocationByIdAsync(Guid parkingId);
+        Task<ApiResponse> UpdateLocationStatusAsync(Guid parkingId, string status);
     }
 }

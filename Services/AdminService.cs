@@ -847,6 +847,218 @@ namespace Parkly_Backend.Services
             return ApiResponse.Failure("Invalid status. Supported values are 'Active', 'Pending', and 'Suspended'.");
         }
 
+        public async Task<ApiResponse<AdminLocationStatsDTO>> GetLocationStatsAsync()
+        {
+            var totalLocations = await _unitOfWork.Parkings.Query().CountAsync();
+            var active = await _unitOfWork.Parkings.Query()
+                .CountAsync(p => p.ParkingSpaces.Any(s => s.IsActive));
+            var totalSpaces = await _unitOfWork.ParkingSpaces.Query().CountAsync();
+            var networkRevenue = await _unitOfWork.Reservations.Query()
+                .Where(r => r.Status == ReservationStatus.Completed)
+                .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m;
+
+            var dto = new AdminLocationStatsDTO
+            {
+                TotalLocations = totalLocations,
+                Active = active,
+                TotalSpaces = totalSpaces,
+                NetworkRevenue = networkRevenue
+            };
+
+            return ApiResponse<AdminLocationStatsDTO>.Success("Parking location statistics retrieved successfully.", dto);
+        }
+
+        public async Task<ApiResponse<PagedResult<AdminLocationListItemDTO>>> GetLocationsAsync(
+            string? status,
+            string? search,
+            int page,
+            int pageSize)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var query = _unitOfWork.Parkings.Query();
+
+            var normalizedStatus = status?.Trim().ToLowerInvariant();
+            if (!string.IsNullOrEmpty(normalizedStatus) && normalizedStatus != "all")
+            {
+                if (normalizedStatus == "active")
+                {
+                    query = query.Where(p => p.ParkingSpaces.Any(s => s.IsActive));
+                }
+                else if (normalizedStatus == "inactive")
+                {
+                    query = query.Where(p => !p.ParkingSpaces.Any(s => s.IsActive));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                query = query.Where(p =>
+                    p.Name.ToLower().Contains(term) ||
+                    p.Address.ToLower().Contains(term) ||
+                    (p.ParkingOwner != null && (
+                        p.ParkingOwner.CompanyName.ToLower().Contains(term) ||
+                        (p.ParkingOwner.User != null && p.ParkingOwner.User.FullName.ToLower().Contains(term))
+                    )));
+            }
+
+            var totalItems = await query.CountAsync();
+
+            var rawLocations = await query
+                .Include(p => p.ParkingOwner)
+                    .ThenInclude(o => o.User)
+                .Include(p => p.ParkingSpaces)
+                .OrderByDescending(p => p.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(p => new
+                {
+                    p.ParkingId,
+                    LocationName = p.Name,
+                    p.OwnerId,
+                    OwnerName = !string.IsNullOrEmpty(p.ParkingOwner.CompanyName)
+                        ? p.ParkingOwner.CompanyName
+                        : (p.ParkingOwner.User != null ? p.ParkingOwner.User.FullName : "Unknown"),
+                    p.Address,
+                    p.AverageRating,
+                    p.CreatedAt,
+                    TotalSpaces = p.ParkingSpaces.Count,
+                    ActiveSpaces = p.ParkingSpaces.Count(s => s.IsActive),
+                    TotalRevenue = _unitOfWork.Reservations.Query()
+                        .Where(r => r.ParkingSpace.ParkingId == p.ParkingId && r.Status == ReservationStatus.Completed)
+                        .Sum(r => (decimal?)r.TotalPrice) ?? 0m
+                })
+                .ToListAsync();
+
+            var dtos = rawLocations.Select(x =>
+            {
+                var isActive = x.ActiveSpaces > 0;
+                return new AdminLocationListItemDTO
+                {
+                    ParkingId = x.ParkingId,
+                    LocationName = x.LocationName,
+                    OwnerId = x.OwnerId,
+                    OwnerName = x.OwnerName,
+                    City = ExtractCity(x.Address),
+                    Address = x.Address,
+                    TotalSpaces = x.TotalSpaces,
+                    ActiveSpaces = x.ActiveSpaces,
+                    TotalRevenue = x.TotalRevenue,
+                    AverageRating = x.AverageRating,
+                    Status = isActive ? "Active" : "Inactive",
+                    IsActive = isActive,
+                    CreatedAt = x.CreatedAt
+                };
+            }).ToList();
+
+            var pagedResult = new PagedResult<AdminLocationListItemDTO>(dtos, totalItems, page, pageSize);
+            return ApiResponse<PagedResult<AdminLocationListItemDTO>>.Success("Parking locations retrieved successfully.", pagedResult);
+        }
+
+        public async Task<ApiResponse<AdminLocationDetailDTO>> GetLocationByIdAsync(Guid parkingId)
+        {
+            var parking = await _unitOfWork.Parkings.Query()
+                .Include(p => p.ParkingOwner)
+                    .ThenInclude(o => o.User)
+                .Include(p => p.ParkingSpaces)
+                .Include(p => p.PricingRules)
+                .FirstOrDefaultAsync(p => p.ParkingId == parkingId);
+
+            if (parking == null)
+            {
+                return ApiResponse<AdminLocationDetailDTO>.Failure("Parking location not found.");
+            }
+
+            var totalRevenue = await _unitOfWork.Reservations.Query()
+                .Where(r => r.ParkingSpace.ParkingId == parkingId && r.Status == ReservationStatus.Completed)
+                .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m;
+
+            var occupied = await _unitOfWork.Reservations.GetCheckedInCountForParkingAsync(parkingId);
+            var activeSpaces = parking.ParkingSpaces.Count(s => s.IsActive);
+            var availableSpaces = Math.Max(0, activeSpaces - occupied);
+            var isActive = activeSpaces > 0;
+
+            var dto = new AdminLocationDetailDTO
+            {
+                ParkingId = parking.ParkingId,
+                LocationName = parking.Name,
+                OwnerId = parking.OwnerId,
+                OwnerName = parking.ParkingOwner?.User?.FullName ?? "Unknown",
+                OwnerBusinessName = parking.ParkingOwner?.CompanyName ?? string.Empty,
+                OwnerEmail = parking.ParkingOwner?.User?.Email ?? string.Empty,
+                OwnerPhone = parking.ParkingOwner?.User?.PhoneNumber ?? string.Empty,
+                City = ExtractCity(parking.Address),
+                Address = parking.Address,
+                Latitude = parking.Latitude,
+                Longitude = parking.Longitude,
+                OperatingHours = parking.OperatingHours,
+                TotalSpaces = parking.ParkingSpaces.Count,
+                ActiveSpaces = activeSpaces,
+                OccupiedSpaces = occupied,
+                AvailableSpaces = availableSpaces,
+                TotalRevenue = totalRevenue,
+                AverageRating = parking.AverageRating,
+                TotalReviews = parking.TotalReviews,
+                Status = isActive ? "Active" : "Inactive",
+                IsActive = isActive,
+                CreatedAt = parking.CreatedAt,
+                Features = parking.Features.Select(f => f.ToString()).ToList(),
+                PricingRules = parking.PricingRules.Select(pr => new AdminLocationPricingRuleDTO
+                {
+                    RuleId = pr.RuleId,
+                    RuleType = pr.RuleType.ToString(),
+                    StartTime = pr.StartTime,
+                    EndTime = pr.EndTime,
+                    PriceModifier = pr.PriceModifier
+                }).ToList()
+            };
+
+            return ApiResponse<AdminLocationDetailDTO>.Success("Parking location details retrieved successfully.", dto);
+        }
+
+        public async Task<ApiResponse> UpdateLocationStatusAsync(Guid parkingId, string status)
+        {
+            var parking = await _unitOfWork.Parkings.Query()
+                .Include(p => p.ParkingSpaces)
+                .FirstOrDefaultAsync(p => p.ParkingId == parkingId);
+
+            if (parking == null)
+            {
+                return ApiResponse.Failure("Parking location not found.");
+            }
+
+            var makeActive = status.Equals("Active", StringComparison.OrdinalIgnoreCase);
+            var makeInactive = status.Equals("Inactive", StringComparison.OrdinalIgnoreCase);
+
+            if (!makeActive && !makeInactive)
+            {
+                return ApiResponse.Failure("Invalid status. Supported values are 'Active' and 'Inactive'.");
+            }
+
+            foreach (var space in parking.ParkingSpaces)
+            {
+                space.IsActive = makeActive;
+                _unitOfWork.ParkingSpaces.Update(space);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            var message = makeActive
+                ? "Parking location activated successfully."
+                : "Parking location deactivated successfully.";
+
+            return ApiResponse.Success(message);
+        }
+
+        private static string ExtractCity(string address)
+        {
+            if (string.IsNullOrWhiteSpace(address)) return string.Empty;
+            var parts = address.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length >= 2 ? parts[1] : parts[0];
+        }
+
         private static string FormatTimeAgo(DateTime timestamp, DateTime now)
         {
             var elapsed = now - timestamp;

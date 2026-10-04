@@ -347,5 +347,100 @@ namespace Parkly_Backend.Controllers
 
             return Ok(result);
         }
+
+        /// <summary>Returns aggregated statistics for the 4 header cards on the Parking Locations page (Total Locations, Active, Total Spaces, Network Revenue).</summary>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the parking location metrics.</returns>
+        /// <response code="200">Statistics retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        [HttpGet("locations/stats")]
+        [ProducesResponseType(typeof(ApiResponse<AdminLocationStatsDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetLocationStats()
+        {
+            var result = await _adminService.GetLocationStatsAsync();
+            return Ok(result);
+        }
+
+        /// <summary>Returns a paginated, filterable, and searchable list of parking locations for the Parking Locations management table.</summary>
+        /// <param name="status">Optional status filter: "all", "active", or "inactive" (default: "all").</param>
+        /// <param name="search">Optional search term to filter by location name, owner company, owner name, city, or address.</param>
+        /// <param name="page">1-based page number (default: 1).</param>
+        /// <param name="pageSize">Number of items per page, clamped between 1 and 100 (default: 10).</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the paginated list of parking locations.</returns>
+        /// <response code="200">Parking locations retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        [HttpGet("locations")]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<AdminLocationListItemDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetLocations(
+            [FromQuery] string? status = "all",
+            [FromQuery] string? search = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var result = await _adminService.GetLocationsAsync(status, search, page, pageSize);
+            return Ok(result);
+        }
+
+        /// <summary>Returns detailed profile information, operating hours, coordinates, pricing rules, and spaces breakdown for a specific parking location.</summary>
+        /// <param name="parkingId">The parking location's unique identifier.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the location details.</returns>
+        /// <response code="200">Location details retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        /// <response code="404">Parking location not found.</response>
+        [HttpGet("locations/{parkingId}")]
+        [ProducesResponseType(typeof(ApiResponse<AdminLocationDetailDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetLocationById(Guid parkingId)
+        {
+            var result = await _adminService.GetLocationByIdAsync(parkingId);
+            if (!result.IsSuccess)
+            {
+                return NotFound(result);
+            }
+            return Ok(result);
+        }
+
+        /// <summary>Updates the operational status of a parking location ("Active" or "Inactive").</summary>
+        /// <param name="parkingId">The parking location's unique identifier.</param>
+        /// <param name="dto">The target status: "Active" or "Inactive".</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating the result of the update.</returns>
+        /// <response code="200">Status updated successfully.</response>
+        /// <response code="400">Invalid status value or request body.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        /// <response code="404">Parking location not found.</response>
+        [HttpPut("locations/{parkingId}/status")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateLocationStatus(Guid parkingId, [FromBody] UpdateLocationStatusDTO dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse.FromModelState("Invalid request", ModelState));
+            }
+
+            var result = await _adminService.UpdateLocationStatusAsync(parkingId, dto.Status);
+            if (!result.IsSuccess)
+            {
+                if (result.Message == "Parking location not found.")
+                {
+                    return NotFound(result);
+                }
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
     }
 }
