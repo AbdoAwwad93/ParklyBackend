@@ -442,5 +442,95 @@ namespace Parkly_Backend.Controllers
 
             return Ok(result);
         }
+
+        /// <summary>Returns aggregated statistics for the 4 header cards and tab pill counters on the Reservations page.</summary>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing platform-wide reservation metrics.</returns>
+        /// <response code="200">Statistics retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        [HttpGet("reservations/stats")]
+        [ProducesResponseType(typeof(ApiResponse<AdminReservationStatsDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetReservationStats()
+        {
+            var result = await _adminService.GetReservationStatsAsync();
+            return Ok(result);
+        }
+
+        /// <summary>Returns a paginated, filterable, and searchable list of platform-wide bookings for the Reservations table.</summary>
+        /// <param name="status">Optional status filter: "all", "upcoming", "active", "completed", or "cancelled" (default: "all").</param>
+        /// <param name="search">Optional search term to filter by booking code (e.g. PK-8492), customer name, email, location, or spot number.</param>
+        /// <param name="page">1-based page number (default: 1).</param>
+        /// <param name="pageSize">Number of items per page, clamped between 1 and 100 (default: 10).</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the paginated list of reservations.</returns>
+        /// <response code="200">Reservations retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        [HttpGet("reservations")]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<AdminReservationListItemDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetReservations(
+            [FromQuery] string? status = "all",
+            [FromQuery] string? search = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var result = await _adminService.GetReservationsAsync(status, search, page, pageSize);
+            return Ok(result);
+        }
+
+        /// <summary>Returns detailed information for a specific platform booking.</summary>
+        /// <param name="reservationId">The reservation unique identifier.</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing the reservation details.</returns>
+        /// <response code="200">Reservation details retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        /// <response code="404">Reservation not found.</response>
+        [HttpGet("reservations/{reservationId}")]
+        [ProducesResponseType(typeof(ApiResponse<AdminReservationDetailDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetReservationById(Guid reservationId)
+        {
+            var result = await _adminService.GetReservationByIdAsync(reservationId);
+            if (!result.IsSuccess)
+            {
+                return NotFound(result);
+            }
+            return Ok(result);
+        }
+
+        /// <summary>Cancels a booking on behalf of the customer or platform administrator.</summary>
+        /// <param name="reservationId">The reservation unique identifier.</param>
+        /// <param name="dto">Optional cancellation reason details.</param>
+        /// <returns>An <see cref="ApiResponse"/> indicating the result of the cancellation.</returns>
+        /// <response code="200">Reservation cancelled successfully.</response>
+        /// <response code="400">Reservation is completed or already cancelled.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        /// <response code="404">Reservation not found.</response>
+        [HttpPut("reservations/{reservationId}/cancel")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> CancelReservation(Guid reservationId, [FromBody] AdminCancelReservationDTO? dto = null)
+        {
+            var result = await _adminService.CancelReservationAsync(reservationId, dto?.Reason);
+            if (!result.IsSuccess)
+            {
+                if (result.Message == "Reservation not found.")
+                {
+                    return NotFound(result);
+                }
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
     }
 }

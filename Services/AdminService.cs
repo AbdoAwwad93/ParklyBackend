@@ -1052,6 +1052,236 @@ namespace Parkly_Backend.Services
             return ApiResponse.Success(message);
         }
 
+        public async Task<ApiResponse<AdminReservationStatsDTO>> GetReservationStatsAsync()
+        {
+            var query = _unitOfWork.Reservations.Query();
+
+            var total = await query.CountAsync();
+            var activeNow = await query.CountAsync(r => r.Status == ReservationStatus.CheckedIn);
+            var upcoming = await query.CountAsync(r => r.Status == ReservationStatus.Confirmed);
+            var completed = await query.CountAsync(r => r.Status == ReservationStatus.Completed);
+            var cancelled = await query.CountAsync(r => r.Status == ReservationStatus.Cancelled);
+            var revenue = await query
+                .Where(r => r.Status == ReservationStatus.Completed)
+                .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m;
+
+            var dto = new AdminReservationStatsDTO
+            {
+                TotalReservations = total,
+                ActiveNow = activeNow,
+                Upcoming = upcoming,
+                RevenueProcessed = revenue,
+                AllCount = total,
+                UpcomingCount = upcoming,
+                ActiveCount = activeNow,
+                CompletedCount = completed,
+                CancelledCount = cancelled
+            };
+
+            return ApiResponse<AdminReservationStatsDTO>.Success("Reservation statistics retrieved successfully.", dto);
+        }
+
+        public async Task<ApiResponse<PagedResult<AdminReservationListItemDTO>>> GetReservationsAsync(
+            string? status,
+            string? search,
+            int page,
+            int pageSize)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var query = _unitOfWork.Reservations.Query();
+
+            var normalizedStatus = status?.Trim().ToLowerInvariant();
+            if (!string.IsNullOrEmpty(normalizedStatus) && normalizedStatus != "all")
+            {
+                query = normalizedStatus switch
+                {
+                    "upcoming" => query.Where(r => r.Status == ReservationStatus.Confirmed),
+                    "active" or "active-now" => query.Where(r => r.Status == ReservationStatus.CheckedIn),
+                    "completed" => query.Where(r => r.Status == ReservationStatus.Completed),
+                    "cancelled" or "canceled" => query.Where(r => r.Status == ReservationStatus.Cancelled),
+                    _ => query
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                var cleanRef = term.Replace("pk-", "");
+                query = query.Where(r =>
+                    (r.User != null && r.User.FullName.ToLower().Contains(term)) ||
+                    (r.User != null && r.User.Email != null && r.User.Email.ToLower().Contains(term)) ||
+                    (r.ParkingSpace.Parking != null && r.ParkingSpace.Parking.Name.ToLower().Contains(term)) ||
+                    r.ParkingSpace.SpotNumber.ToLower().Contains(term) ||
+                    r.ReservationId.ToString().ToLower().Contains(cleanRef));
+            }
+
+            var totalItems = await query.CountAsync();
+
+            var rawReservations = await query
+                .Include(r => r.User)
+                .Include(r => r.ParkingSpace)
+                    .ThenInclude(s => s.Parking)
+                .OrderBy(r => r.Status == ReservationStatus.CheckedIn ? 0 :
+                    r.Status == ReservationStatus.Confirmed ? 1 :
+                    r.Status == ReservationStatus.Completed ? 2 : 3)
+                .ThenByDescending(r => r.ArrivalTime)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(r => new
+                {
+                    r.ReservationId,
+                    CustomerName = r.User != null ? r.User.FullName : "Unknown",
+                    CustomerEmail = r.User != null ? r.User.Email ?? "" : "",
+                    LocationName = r.ParkingSpace.Parking != null ? r.ParkingSpace.Parking.Name : "Unknown",
+                    ParkingId = r.ParkingSpace.ParkingId,
+                    SpaceNumber = r.ParkingSpace.SpotNumber,
+                    SpaceId = r.SpaceId,
+                    r.ArrivalTime,
+                    r.DepartureTime,
+                    r.TotalPrice,
+                    r.Status
+                })
+                .ToListAsync();
+
+            var dtos = rawReservations.Select(x =>
+            {
+                var duration = x.DepartureTime - x.ArrivalTime;
+                return new AdminReservationListItemDTO
+                {
+                    ReservationId = x.ReservationId,
+                    Code = $"PK-{x.ReservationId.ToString("N")[^4..].ToUpperInvariant()}",
+                    CustomerId = Guid.Empty,
+                    CustomerName = x.CustomerName,
+                    CustomerInitials = ExtractInitials(x.CustomerName),
+                    CustomerEmail = x.CustomerEmail,
+                    Location = x.LocationName,
+                    ParkingId = x.ParkingId,
+                    Space = x.SpaceNumber,
+                    SpaceId = x.SpaceId,
+                    Date = x.ArrivalTime.ToString("MMM dd, yyyy"),
+                    Time = $"{x.ArrivalTime:hh:mm tt} - {x.DepartureTime:hh:mm tt}",
+                    Duration = FormatDuration(duration),
+                    Amount = x.TotalPrice,
+                    Status = ToReservationStatusDisplay(x.Status),
+                    ArrivalTime = x.ArrivalTime,
+                    DepartureTime = x.DepartureTime
+                };
+            }).ToList();
+
+            var pagedResult = new PagedResult<AdminReservationListItemDTO>(dtos, totalItems, page, pageSize);
+            return ApiResponse<PagedResult<AdminReservationListItemDTO>>.Success("Reservations retrieved successfully.", pagedResult);
+        }
+
+        public async Task<ApiResponse<AdminReservationDetailDTO>> GetReservationByIdAsync(Guid reservationId)
+        {
+            var reservation = await _unitOfWork.Reservations.Query()
+                .Include(r => r.User)
+                .Include(r => r.Review)
+                .Include(r => r.ParkingSpace)
+                    .ThenInclude(s => s.Parking)
+                        .ThenInclude(p => p.ParkingOwner)
+                .FirstOrDefaultAsync(r => r.ReservationId == reservationId);
+
+            if (reservation == null)
+            {
+                return ApiResponse<AdminReservationDetailDTO>.Failure("Reservation not found.");
+            }
+
+            var duration = reservation.DepartureTime - reservation.ArrivalTime;
+            var customerName = reservation.User != null ? reservation.User.FullName : "Unknown";
+
+            var dto = new AdminReservationDetailDTO
+            {
+                ReservationId = reservation.ReservationId,
+                Code = $"PK-{reservation.ReservationId.ToString("N")[^4..].ToUpperInvariant()}",
+                Status = ToReservationStatusDisplay(reservation.Status),
+                TotalPrice = reservation.TotalPrice,
+                QrCode = reservation.QrCode,
+                ArrivalTime = reservation.ArrivalTime,
+                DepartureTime = reservation.DepartureTime,
+                DateFormatted = reservation.ArrivalTime.ToString("MMM dd, yyyy"),
+                TimeWindowFormatted = $"{reservation.ArrivalTime:hh:mm tt} - {reservation.DepartureTime:hh:mm tt}",
+                DurationFormatted = FormatDuration(duration),
+                CustomerId = reservation.UserId,
+                CustomerName = customerName,
+                CustomerInitials = ExtractInitials(customerName),
+                CustomerEmail = reservation.User?.Email ?? string.Empty,
+                CustomerPhone = reservation.User?.PhoneNumber ?? string.Empty,
+                ParkingId = reservation.ParkingSpace?.ParkingId ?? Guid.Empty,
+                ParkingName = reservation.ParkingSpace?.Parking?.Name ?? "Unknown Parking",
+                ParkingAddress = reservation.ParkingSpace?.Parking?.Address ?? string.Empty,
+                OwnerBusinessName = reservation.ParkingSpace?.Parking?.ParkingOwner?.CompanyName ?? string.Empty,
+                SpaceId = reservation.SpaceId,
+                SpotNumber = reservation.ParkingSpace?.SpotNumber ?? "N/A",
+                Level = reservation.ParkingSpace?.Level,
+                SpaceType = reservation.ParkingSpace?.SpaceType.ToString() ?? "Standard",
+                VehicleSize = reservation.ParkingSpace?.VehicleSize?.ToString(),
+                ReviewRating = reservation.Review?.Rating,
+                ReviewComment = reservation.Review?.Comment,
+                ReviewDate = reservation.Review?.CreatedAt
+            };
+
+            return ApiResponse<AdminReservationDetailDTO>.Success("Reservation details retrieved successfully.", dto);
+        }
+
+        public async Task<ApiResponse> CancelReservationAsync(Guid reservationId, string? reason)
+        {
+            var reservation = await _unitOfWork.Reservations.Query()
+                .Include(r => r.ParkingSpace)
+                .FirstOrDefaultAsync(r => r.ReservationId == reservationId);
+
+            if (reservation == null)
+            {
+                return ApiResponse.Failure("Reservation not found.");
+            }
+
+            if (reservation.Status == ReservationStatus.Cancelled)
+            {
+                return ApiResponse.Failure("Reservation is already cancelled.");
+            }
+
+            if (reservation.Status == ReservationStatus.Completed)
+            {
+                return ApiResponse.Failure("Cannot cancel a completed reservation.");
+            }
+
+            reservation.Status = ReservationStatus.Cancelled;
+            if (reservation.ParkingSpace != null)
+            {
+                reservation.ParkingSpace.Status = SpaceStatus.Available;
+                _unitOfWork.ParkingSpaces.Update(reservation.ParkingSpace);
+            }
+
+            _unitOfWork.Reservations.Update(reservation);
+            await _unitOfWork.SaveChangesAsync();
+
+            return ApiResponse.Success("Reservation cancelled successfully.");
+        }
+
+        private static string ToReservationStatusDisplay(ReservationStatus status) => status switch
+        {
+            ReservationStatus.Confirmed => "Upcoming",
+            ReservationStatus.CheckedIn => "Active",
+            ReservationStatus.Completed => "Completed",
+            ReservationStatus.Cancelled => "Cancelled",
+            _ => status.ToString()
+        };
+
+        private static string FormatDuration(TimeSpan duration)
+        {
+            if (duration < TimeSpan.Zero) duration = TimeSpan.Zero;
+            var totalHours = duration.TotalHours;
+            if (totalHours < 1)
+            {
+                return $"{Math.Max(1, (int)Math.Ceiling(duration.TotalMinutes))}m";
+            }
+            return Math.Abs(totalHours - Math.Round(totalHours)) < 0.01
+                ? $"{(int)Math.Round(totalHours)}h"
+                : $"{Math.Round(totalHours, 1)}h";
+        }
+
         private static string ExtractCity(string address)
         {
             if (string.IsNullOrWhiteSpace(address)) return string.Empty;
