@@ -16,7 +16,7 @@ namespace Parkly_Backend.Models
         public string Token { get; set; } = string.Empty;
 
         /// <summary>Optional client-supplied device identifier to distinguish devices.</summary>
-        [MaxLength(50)]
+        [MaxLength(250)]
         public string? DeviceId { get; set; }
 
         /// <summary>Platform hint: "android", "ios", or "web".</summary>
