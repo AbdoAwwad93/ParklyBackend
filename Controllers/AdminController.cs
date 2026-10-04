@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Parkly_Backend.Interfaces;
@@ -471,11 +472,7 @@ namespace Parkly_Backend.Controllers
         [ProducesResponseType(typeof(ApiResponse<PagedResult<AdminReservationListItemDTO>>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> GetReservations(
-            [FromQuery] string? status = "all",
-            [FromQuery] string? search = null,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> GetReservations([FromQuery] string? status = "all",[FromQuery] string? search = null,[FromQuery] int page = 1,[FromQuery] int pageSize = 10)
         {
             var result = await _adminService.GetReservationsAsync(status, search, page, pageSize);
             return Ok(result);
@@ -531,6 +528,47 @@ namespace Parkly_Backend.Controllers
             }
 
             return Ok(result);
+        }
+
+        /// <summary>Returns platform-wide reports and analytics, including revenue and bookings trend, owner breakdown, and summary cards.</summary>
+        /// <param name="period">Aggregation period: "this_week", "this_month", or "last_6_months" (default: "last_6_months").</param>
+        /// <returns>An <see cref="ApiResponse{T}"/> containing platform-wide analytics metrics and charts.</returns>
+        /// <response code="200">Analytics retrieved successfully.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        [HttpGet("analytics")]
+        [ProducesResponseType(typeof(ApiResponse<AdminAnalyticsDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetAnalytics([FromQuery] string? period = "last_6_months")
+        {
+            var result = await _adminService.GetAnalyticsAsync(period);
+            return Ok(result);
+        }
+
+        /// <summary>Exports platform-wide analytics and owner revenue breakdown as a downloadable CSV spreadsheet.</summary>
+        /// <param name="period">Aggregation period: "this_week", "this_month", or "last_6_months" (default: "last_6_months").</param>
+        /// <returns>A CSV file download of the platform analytics report.</returns>
+        /// <response code="200">CSV report generated successfully.</response>
+        /// <response code="400">Failed to generate export data.</response>
+        /// <response code="401">Missing or invalid JWT token.</response>
+        /// <response code="403">Authenticated user is not an admin.</response>
+        [HttpGet("analytics/export")]
+        [Produces("text/csv")]
+        [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> ExportAnalytics([FromQuery] string? period = "last_6_months")
+        {
+            var result = await _adminService.ExportAnalyticsCsvAsync(period);
+            if (!result.IsSuccess || result.Data == null)
+            {
+                return BadRequest(result);
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(result.Data);
+            return File(bytes, "text/csv", $"parkly-analytics-{period ?? "last_6_months"}-{DateTime.UtcNow:yyyyMMddHHmmss}.csv");
         }
     }
 }

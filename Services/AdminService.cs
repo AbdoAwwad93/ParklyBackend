@@ -1,3 +1,4 @@
+using System.Text;
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -1280,6 +1281,217 @@ namespace Parkly_Backend.Services
             return Math.Abs(totalHours - Math.Round(totalHours)) < 0.01
                 ? $"{(int)Math.Round(totalHours)}h"
                 : $"{Math.Round(totalHours, 1)}h";
+        }
+
+        public async Task<ApiResponse<AdminAnalyticsDTO>> GetAnalyticsAsync(string? period)
+        {
+            var normalizedPeriod = period?.Trim().ToLowerInvariant() switch
+            {
+                "this_week" or "week" or "weekly" => "this_week",
+                "this_month" or "month" or "monthly" => "this_month",
+                _ => "last_6_months"
+            };
+
+            var now = DateTime.UtcNow;
+            var windowStart = normalizedPeriod switch
+            {
+                "this_week" => now.Date.AddDays(-7),
+                "this_month" => now.Date.AddDays(-30),
+                _ => now.Date.AddMonths(-6)
+            };
+
+            var parkings = await _unitOfWork.Parkings.Query()
+                .Include(p => p.ParkingSpaces)
+                .ToListAsync();
+            var activeLocations = parkings.Count(p => p.ParkingSpaces.Any(s => s.IsActive));
+            var activeSpacesCount = parkings.SelectMany(p => p.ParkingSpaces).Count(s => s.IsActive);
+
+            var reservations = await _unitOfWork.Reservations.Query()
+                .Include(r => r.ParkingSpace)
+                    .ThenInclude(s => s.Parking)
+                .Where(r => r.ArrivalTime >= windowStart)
+                .ToListAsync();
+
+            var totalRevenue = reservations
+                .Where(r => r.Status == ReservationStatus.Completed)
+                .Sum(r => r.TotalPrice);
+            var totalBookings = reservations.Count;
+
+            var checkedIn = await _unitOfWork.Reservations.Query()
+                .CountAsync(r => r.Status == ReservationStatus.CheckedIn);
+            var avgOccupancy = activeSpacesCount > 0
+                ? Math.Round(Math.Min(100.0, (double)checkedIn * 100.0 / activeSpacesCount), 1)
+                : 0.0;
+
+            List<AdminTrendDataPointDTO> trendPoints;
+            if (normalizedPeriod == "this_week")
+            {
+                trendPoints = Enumerable.Range(0, 7)
+                    .Select(i =>
+                    {
+                        var day = now.Date.AddDays(-(6 - i));
+                        var nextDay = day.AddDays(1);
+                        return new AdminTrendDataPointDTO
+                        {
+                            Label = day.ToString("ddd"),
+                            Date = day,
+                            Bookings = reservations.Count(r => r.ArrivalTime >= day && r.ArrivalTime < nextDay),
+                            Revenue = reservations
+                                .Where(r => r.Status == ReservationStatus.Completed && r.ArrivalTime >= day && r.ArrivalTime < nextDay)
+                                .Sum(r => r.TotalPrice)
+                        };
+                    })
+                    .ToList();
+            }
+            else if (normalizedPeriod == "this_month")
+            {
+                trendPoints = Enumerable.Range(0, 4)
+                    .Select(weeksAgo =>
+                    {
+                        var weekEnd = now.Date.AddDays(-(weeksAgo * 7));
+                        var weekStart = weekEnd.AddDays(-6);
+                        return new AdminTrendDataPointDTO
+                        {
+                            Label = $"Week {4 - weeksAgo}",
+                            Date = weekStart,
+                            Bookings = reservations.Count(r => r.ArrivalTime.Date >= weekStart && r.ArrivalTime.Date <= weekEnd),
+                            Revenue = reservations
+                                .Where(r => r.Status == ReservationStatus.Completed && r.ArrivalTime.Date >= weekStart && r.ArrivalTime.Date <= weekEnd)
+                                .Sum(r => r.TotalPrice)
+                        };
+                    })
+                    .Reverse()
+                    .ToList();
+            }
+            else
+            {
+                trendPoints = Enumerable.Range(0, 12)
+                    .Select(monthsAgo =>
+                    {
+                        var month = now.AddMonths(-monthsAgo);
+                        var monthStart = new DateTime(month.Year, month.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                        var monthEnd = monthStart.AddMonths(1);
+                        return new AdminTrendDataPointDTO
+                        {
+                            Label = month.ToString("MMM"),
+                            Date = monthStart,
+                            Bookings = reservations.Count(r => r.ArrivalTime >= monthStart && r.ArrivalTime < monthEnd),
+                            Revenue = reservations
+                                .Where(r => r.Status == ReservationStatus.Completed && r.ArrivalTime >= monthStart && r.ArrivalTime < monthEnd)
+                                .Sum(r => r.TotalPrice)
+                        };
+                    })
+                    .Reverse()
+                    .ToList();
+            }
+
+            var owners = await _unitOfWork.ParkingOwners.Query()
+                .Include(o => o.User)
+                .Include(o => o.Parkings)
+                .ToListAsync();
+
+            var revenueByOwner = owners.Select(o =>
+            {
+                var displayName = !string.IsNullOrWhiteSpace(o.CompanyName)
+                    ? o.CompanyName
+                    : (o.User != null && !string.IsNullOrWhiteSpace(o.User.FullName)
+                        ? o.User.FullName
+                        : $"Owner {o.OwnerId.ToString("N")[..8]}");
+
+                var ownerReservations = reservations
+                    .Where(r => r.ParkingSpace?.Parking?.OwnerId == o.OwnerId)
+                    .ToList();
+
+                var ownerRevenue = ownerReservations
+                    .Where(r => r.Status == ReservationStatus.Completed)
+                    .Sum(r => r.TotalPrice);
+
+                var share = totalRevenue > 0
+                    ? Math.Round((double)(ownerRevenue / totalRevenue) * 100.0, 1)
+                    : 0.0;
+
+                return new AdminOwnerRevenueShareDTO
+                {
+                    OwnerId = o.OwnerId,
+                    OwnerName = displayName,
+                    LocationsCount = o.Parkings.Count,
+                    Revenue = ownerRevenue,
+                    SharePercentage = share
+                };
+            })
+            .OrderByDescending(x => x.Revenue)
+            .ToList();
+
+            var bookingsByOwner = owners.Select(o =>
+            {
+                var displayName = !string.IsNullOrWhiteSpace(o.CompanyName)
+                    ? o.CompanyName
+                    : (o.User != null && !string.IsNullOrWhiteSpace(o.User.FullName)
+                        ? o.User.FullName
+                        : $"Owner {o.OwnerId.ToString("N")[..8]}");
+
+                var ownerBookings = reservations
+                    .Count(r => r.ParkingSpace?.Parking?.OwnerId == o.OwnerId);
+
+                var share = totalBookings > 0
+                    ? Math.Round((double)ownerBookings * 100.0 / totalBookings, 1)
+                    : 0.0;
+
+                return new AdminOwnerBookingsShareDTO
+                {
+                    OwnerId = o.OwnerId,
+                    OwnerName = displayName,
+                    BookingsCount = ownerBookings,
+                    SharePercentage = share
+                };
+            })
+            .OrderByDescending(x => x.BookingsCount)
+            .ToList();
+
+            var dto = new AdminAnalyticsDTO
+            {
+                Period = normalizedPeriod,
+                Summary = new AdminAnalyticsSummaryDTO
+                {
+                    TotalRevenue = totalRevenue,
+                    TotalBookings = totalBookings,
+                    AvgOccupancy = avgOccupancy,
+                    ActiveLocations = activeLocations
+                },
+                Trend = trendPoints,
+                RevenueByOwner = revenueByOwner,
+                BookingsByOwner = bookingsByOwner
+            };
+
+            return ApiResponse<AdminAnalyticsDTO>.Success("Analytics data retrieved successfully.", dto);
+        }
+
+        public async Task<ApiResponse<string>> ExportAnalyticsCsvAsync(string? period)
+        {
+            var analyticsRes = await GetAnalyticsAsync(period);
+            if (!analyticsRes.IsSuccess || analyticsRes.Data == null)
+            {
+                return ApiResponse<string>.Failure("Failed to generate analytics data for export.");
+            }
+
+            var data = analyticsRes.Data;
+            var sb = new StringBuilder();
+            sb.AppendLine($"# Parkly Platform Analytics Report ({data.Period})");
+            sb.AppendLine($"# Generated at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+            sb.AppendLine($"# Total Revenue: ${data.Summary.TotalRevenue:F2}, Total Bookings: {data.Summary.TotalBookings}, Avg Occupancy: {data.Summary.AvgOccupancy}%, Active Locations: {data.Summary.ActiveLocations}");
+            sb.AppendLine();
+            sb.AppendLine("Owner,Locations,Revenue,Revenue Share %,Bookings,Bookings Share %");
+
+            foreach (var rev in data.RevenueByOwner)
+            {
+                var b = data.BookingsByOwner.FirstOrDefault(x => x.OwnerId == rev.OwnerId);
+                var bookings = b?.BookingsCount ?? 0;
+                var bShare = b?.SharePercentage ?? 0.0;
+                var safeName = rev.OwnerName.Contains(',') ? $"\"{rev.OwnerName}\"" : rev.OwnerName;
+                sb.AppendLine($"{safeName},{rev.LocationsCount},{rev.Revenue:F2},{rev.SharePercentage}%,{bookings},{bShare}%");
+            }
+
+            return ApiResponse<string>.Success("Analytics CSV exported successfully.", sb.ToString());
         }
 
         private static string ExtractCity(string address)

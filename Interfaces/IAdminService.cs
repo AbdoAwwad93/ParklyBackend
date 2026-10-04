@@ -39,5 +39,9 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse<PagedResult<AdminReservationListItemDTO>>> GetReservationsAsync(string? status, string? search, int page, int pageSize);
         Task<ApiResponse<AdminReservationDetailDTO>> GetReservationByIdAsync(Guid reservationId);
         Task<ApiResponse> CancelReservationAsync(Guid reservationId, string? reason);
+
+        // 7. Reports & Analytics
+        Task<ApiResponse<AdminAnalyticsDTO>> GetAnalyticsAsync(string? period);
+        Task<ApiResponse<string>> ExportAnalyticsCsvAsync(string? period);
     }
 }
