@@ -160,6 +160,15 @@ namespace Parkly_Backend
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
 
             builder.Services.AddSignalR();
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAll", policy =>
+                {
+                    policy.AllowAnyOrigin()
+                          .AllowAnyHeader()
+                          .AllowAnyMethod();
+                });
+            });
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
@@ -207,6 +216,7 @@ namespace Parkly_Backend
                 app.UseSwaggerUI(options =>
                 options.SwaggerEndpoint("/swagger/v1/swagger.json", "Parkly API v1"));
             }
+            app.UseCors("AllowAll");
 
             app.UseHttpsRedirection();
             app.UseAuthentication();
