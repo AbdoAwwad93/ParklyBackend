@@ -10,11 +10,15 @@ namespace Parkly_Backend.Services
     public class DashboardService : IDashboardService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IActivityLogService _activityLogService;
         private const decimal RevenueTarget = 1500m;
 
-        public DashboardService(IUnitOfWork unitOfWork)
+        public DashboardService(
+            IUnitOfWork unitOfWork,
+            IActivityLogService activityLogService)
         {
             _unitOfWork = unitOfWork;
+            _activityLogService = activityLogService;
         }
 
         public async Task<ApiResponse<DashboardSummaryDTO>> GetSummaryAsync(Guid ownerId)
@@ -236,71 +240,8 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<List<ActivityFeedItemDTO>>> GetRecentActivityAsync(Guid ownerId, int limit)
         {
-            limit = Math.Clamp(limit, 1, 50);
-            var since = DateTime.UtcNow.AddDays(-7);
-
-            var parkingIds = (await _unitOfWork.Parkings.GetParkingsWithSpacesAsync())
-                .Where(p => p.OwnerId == ownerId)
-                .Select(p => p.ParkingId)
-                .ToHashSet();
-
-            var accessLogs = await _unitOfWork.AccessLogs.GetRecentByParkingsAsync(parkingIds, since, limit * 2);
-            var recentReservations = await _unitOfWork.Reservations.GetRecentByParkingsAsync(parkingIds, since, limit * 2);
-
-            var now = DateTime.UtcNow;
-            var feedItems = new List<ActivityFeedItemDTO>();
-
-            foreach (var log in accessLogs)
-            {
-                var reservation = log.Reservation;
-                var userName = reservation?.User?.UserName ?? "Unknown";
-                var parkingName = reservation?.ParkingSpace?.Parking?.Name ?? "Unknown";
-                var spotNumber = reservation?.ParkingSpace?.SpotNumber ?? "?";
-
-                feedItems.Add(new ActivityFeedItemDTO
-                {
-                    Type = log.ScanType == ScanType.Entry ? "CheckIn" : "CheckOut",
-                    Description = log.ScanType == ScanType.Entry
-                        ? $"{userName} checked in to {parkingName} — {spotNumber}"
-                        : $"{userName} checked out from {parkingName} — {spotNumber}",
-                    Timestamp = log.ScanTimestamp,
-                    TimeAgo = FormatTimeAgo(log.ScanTimestamp, now)
-                });
-            }
-
-            foreach (var reservation in recentReservations)
-            {
-                var userName = reservation.User?.UserName ?? "Unknown";
-                var bookingRef = $"PK-{reservation.ReservationId.ToString("N")[^4..].ToUpperInvariant()}";
-
-                if (reservation.Status == ReservationStatus.Cancelled)
-                {
-                    feedItems.Add(new ActivityFeedItemDTO
-                    {
-                        Type = "Cancellation",
-                        Description = $"{userName} cancelled booking {bookingRef} — refund issued",
-                        Timestamp = reservation.ArrivalTime,
-                        TimeAgo = FormatTimeAgo(reservation.ArrivalTime, now)
-                    });
-                }
-                else if (reservation.Status == ReservationStatus.Confirmed || reservation.Status == ReservationStatus.CheckedIn)
-                {
-                    feedItems.Add(new ActivityFeedItemDTO
-                    {
-                        Type = "NewBooking",
-                        Description = $"New booking confirmed — {userName} · {bookingRef}",
-                        Timestamp = reservation.ArrivalTime,
-                        TimeAgo = FormatTimeAgo(reservation.ArrivalTime, now)
-                    });
-                }
-            }
-
-            var sortedFeed = feedItems
-                .OrderByDescending(f => f.Timestamp)
-                .Take(limit)
-                .ToList();
-
-            return ApiResponse<List<ActivityFeedItemDTO>>.Success("Recent activity retrieved successfully.", sortedFeed);
+            var activities = await _activityLogService.GetOwnerRecentActivityAsync(ownerId, limit);
+            return ApiResponse<List<ActivityFeedItemDTO>>.Success("Recent activity retrieved successfully.", activities);
         }
 
         private static string FormatTimeAgo(DateTime timestamp, DateTime now)

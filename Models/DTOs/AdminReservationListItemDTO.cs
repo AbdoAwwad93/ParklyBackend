@@ -57,5 +57,8 @@ namespace Parkly_Backend.Models.DTOs
 
         /// <summary>Raw UTC departure timestamp.</summary>
         public DateTime DepartureTime { get; set; }
+
+        /// <summary>Raw UTC creation timestamp.</summary>
+        public DateTime CreatedAt { get; set; }
     }
 }

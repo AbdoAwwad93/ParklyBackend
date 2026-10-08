@@ -11,9 +11,6 @@ namespace Parkly_Backend.Models.DTOs
         /// </summary>
         public string Type { get; set; } = string.Empty;
 
-        /// <summary>Material icon name for frontend rendering (e.g. "person_add", "description").</summary>
-        public string Icon { get; set; } = string.Empty;
-
         /// <summary>Human-readable description of the event.</summary>
         public string Description { get; set; } = string.Empty;
 

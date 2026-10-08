@@ -14,12 +14,18 @@ namespace Parkly_Backend.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAvailabilityService _availabilityService;
         private readonly IMapper _mapper;
+        private readonly IActivityLogService _activityLogService;
 
-        public ParkingsService(IUnitOfWork unitOfWork, IAvailabilityService availabilityService, IMapper mapper)
+        public ParkingsService(
+            IUnitOfWork unitOfWork,
+            IAvailabilityService availabilityService,
+            IMapper mapper,
+            IActivityLogService activityLogService)
         {
             _unitOfWork = unitOfWork;
             _availabilityService = availabilityService;
             _mapper = mapper;
+            _activityLogService = activityLogService;
         }
 
         public async Task<ApiResponse<List<ParkingResponseDTO>>> GetAllAsync()
@@ -137,6 +143,17 @@ namespace Parkly_Backend.Services
 
             await _unitOfWork.Parkings.AddAsync(parking);
             await _unitOfWork.SaveChangesAsync();
+
+            var ownerName = parkingOwner.CompanyName ?? "Owner";
+            await _activityLogService.LogAsync(
+                eventType: "NewParking",
+                category: "Location",
+                description: $"{ownerName} added {parking.Name}",
+                actorUserId: ownerId,
+                actorName: ownerName,
+                targetEntityId: parking.ParkingId,
+                targetEntityType: "Parking",
+                parkingId: parking.ParkingId);
 
             var response = _mapper.Map<ParkingResponseDTO>(parking);
             return ApiResponse<ParkingResponseDTO>.Success("Parking created successfully.", response);

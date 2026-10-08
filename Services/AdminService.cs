@@ -16,16 +16,19 @@ namespace Parkly_Backend.Services
         private readonly UserManager<AppUser> _userManager;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
+        private readonly IActivityLogService _activityLogService;
         private const decimal PlatformCommissionRate = 0.10m; // 10% platform fee
 
         public AdminService(
             UserManager<AppUser> userManager,
             IUnitOfWork unitOfWork,
-            IMapper mapper)
+            IMapper mapper,
+            IActivityLogService activityLogService)
         {
             _userManager = userManager;
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _activityLogService = activityLogService;
         }
 
         public async Task<ApiResponse> RegisterAdmin(RegisterDTO dto)
@@ -239,109 +242,9 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<List<AdminActivityFeedItemDTO>>> GetRecentActivityAsync(int limit)
         {
-            limit = Math.Clamp(limit, 1, 50);
-            var now = DateTime.UtcNow;
-            var since = now.AddDays(-7);
-
-            var feedItems = new List<AdminActivityFeedItemDTO>();
-            var recentUsers = await _userManager.Users
-                .Where(u => u.CreatedAt >= since)
-                .OrderByDescending(u => u.CreatedAt)
-                .Take(limit)
-                .ToListAsync();
-
-            foreach (var user in recentUsers.Where(u => u.Role == UserRole.Driver))
-            {
-                feedItems.Add(new AdminActivityFeedItemDTO
-                {
-                    Type = "NewAccount",
-                    Icon = "person_add",
-                    Description = $"{user.FullName} created a new account",
-                    Timestamp = user.CreatedAt,
-                    TimeAgo = FormatTimeAgo(user.CreatedAt, now)
-                });
-            }
-            var recentApplications = await _unitOfWork.ParkingOwners.GetRecentApplicationsAsync(since, limit);
-            foreach (var owner in recentApplications)
-            {
-                var name = owner.User?.FullName ?? "Unknown";
-                var createdAt = owner.User?.CreatedAt ?? now;
-                feedItems.Add(new AdminActivityFeedItemDTO
-                {
-                    Type = "OwnerApplication",
-                    Icon = "description",
-                    Description = $"{name} submitted owner application",
-                    Timestamp = createdAt,
-                    TimeAgo = FormatTimeAgo(createdAt, now)
-                });
-            }
-            var recentBookings = await _unitOfWork.Reservations.GetRecentPlatformBookingsAsync(since, limit);
-            var bookingIds = recentBookings.Select(b => b.ReservationId).ToList();
-            var bookingDates = await _unitOfWork.Notifications.Query()
-                .Where(n => n.ReservationId != null && bookingIds.Contains(n.ReservationId.Value))
-                .GroupBy(n => n.ReservationId!.Value)
-                .Select(g => new { ReservationId = g.Key, CreatedAt = g.Min(x => x.CreatedAt) })
-                .ToDictionaryAsync(x => x.ReservationId, x => x.CreatedAt);
-
-            foreach (var reservation in recentBookings)
-            {
-                var bookingRef = $"RES-{reservation.ReservationId.ToString("N")[^4..].ToUpperInvariant()}";
-                var parkingName = reservation.ParkingSpace?.Parking?.Name ?? "Unknown";
-                var timestamp = bookingDates.TryGetValue(reservation.ReservationId, out var dt)
-                    ? dt
-                    : (reservation.ArrivalTime <= now ? reservation.ArrivalTime : now);
-
-                feedItems.Add(new AdminActivityFeedItemDTO
-                {
-                    Type = "NewBooking",
-                    Icon = "calendar_today",
-                    Description = $"New booking at {parkingName} — #{bookingRef}",
-                    Timestamp = timestamp,
-                    TimeAgo = FormatTimeAgo(timestamp, now)
-                });
-            }
-            var parkings = await _unitOfWork.Parkings.GetParkingsWithSpacesAsync();
-            foreach (var parking in parkings)
-            {
-                var activeSpaces = parking.ParkingSpaces.Count(s => s.IsActive);
-                if (activeSpaces == 0) continue;
-
-                var occupied = await _unitOfWork.Reservations.GetCheckedInCountForParkingAsync(parking.ParkingId);
-                var occupancyPct = (int)Math.Round(occupied * 100.0 / activeSpaces);
-
-                if (occupancyPct >= 90)
-                {
-                    feedItems.Add(new AdminActivityFeedItemDTO
-                    {
-                        Type = "OccupancyAlert",
-                        Icon = "bolt",
-                        Description = $"{parking.Name} reached {occupancyPct}% occupancy",
-                        Timestamp = now,
-                        TimeAgo = "just now"
-                    });
-                }
-            }
-            var recentParkings = await _unitOfWork.Parkings.GetRecentParkingsAsync(since, limit);
-            foreach (var parking in recentParkings)
-            {
-                var ownerName = parking.ParkingOwner?.User?.FullName ?? "Unknown";
-                feedItems.Add(new AdminActivityFeedItemDTO
-                {
-                    Type = "NewParking",
-                    Icon = "add_circle",
-                    Description = $"{ownerName} added {parking.Name}",
-                    Timestamp = parking.CreatedAt.GetValueOrDefault(now),
-                    TimeAgo = FormatTimeAgo(parking.CreatedAt.GetValueOrDefault(now), now)
-                });
-            }
-
-            var sortedFeed = feedItems
-                .OrderByDescending(f => f.Timestamp)
-                .Take(limit)
-                .ToList();
-
+            var activities = await _activityLogService.GetAdminRecentActivityAsync(limit);
             return ApiResponse<List<AdminActivityFeedItemDTO>>.Success(
-                "Recent activity retrieved successfully.", sortedFeed);
+                "Recent activity retrieved successfully.", activities);
         }
 
         public async Task<ApiResponse<List<PendingApprovalDTO>>> GetPendingApprovalsAsync(int page, int pageSize)
@@ -1135,7 +1038,7 @@ namespace Parkly_Backend.Services
                 .Include(r => r.User)
                 .Include(r => r.ParkingSpace)
                     .ThenInclude(s => s.Parking)
-                .OrderByDescending(r => r.ArrivalTime)
+                .OrderByDescending(r => r.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(r => new
@@ -1151,7 +1054,8 @@ namespace Parkly_Backend.Services
                     r.ArrivalTime,
                     r.DepartureTime,
                     r.TotalPrice,
-                    r.Status
+                    r.Status,
+                    r.CreatedAt
                 })
                 .ToListAsync();
 
@@ -1176,7 +1080,8 @@ namespace Parkly_Backend.Services
                     Amount = x.TotalPrice,
                     Status = ToReservationStatusDisplay(x.Status),
                     ArrivalTime = x.ArrivalTime,
-                    DepartureTime = x.DepartureTime
+                    DepartureTime = x.DepartureTime,
+                    CreatedAt = x.CreatedAt
                 };
             }).ToList();
 

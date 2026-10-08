@@ -25,6 +25,7 @@ namespace Parkly_Backend.Data.Repositories
         public INotificationsRepository Notifications { get; private set; }
         public ISpaceTypePricingRepository SpaceTypePricings { get; private set; }
         public IUserFcmTokensRepository UserFcmTokens { get; private set; }
+        public IActivityLogsRepository ActivityLogs { get; private set; }
 
         public UnitOfWork(AppDbContext context)
         {
@@ -43,6 +44,7 @@ namespace Parkly_Backend.Data.Repositories
             Notifications = new NotificationsRepository(_context);
             SpaceTypePricings = new SpaceTypePricingRepository(_context);
             UserFcmTokens = new UserFcmTokensRepository(_context);
+            ActivityLogs = new ActivityLogsRepository(_context);
         }
 
         public async Task<int> SaveChangesAsync()

@@ -22,8 +22,18 @@ namespace Parkly_Backend.Services
         private readonly ILogger<ReservationsService> _logger;
         private readonly IParkingSpacesService _spacesService;
         private readonly INotificationService _notificationService;
+        private readonly IActivityLogService _activityLogService;
 
-        public ReservationsService(IUnitOfWork unitOfWork,IParkingSpacesService spacesService, IPricingService pricingService, IAvailabilityService availabilityService, IMapper mapper, ILogger<ReservationsService> logger, INotificationService notificationService, IOptions<JwtOptions>? jwtOptions = null)
+        public ReservationsService(
+            IUnitOfWork unitOfWork,
+            IParkingSpacesService spacesService,
+            IPricingService pricingService,
+            IAvailabilityService availabilityService,
+            IMapper mapper,
+            ILogger<ReservationsService> logger,
+            INotificationService notificationService,
+            IActivityLogService activityLogService,
+            IOptions<JwtOptions>? jwtOptions = null)
         {
             _unitOfWork = unitOfWork;
             _pricingService = pricingService;
@@ -32,6 +42,7 @@ namespace Parkly_Backend.Services
             _logger = logger;
             _spacesService = spacesService;
             _notificationService = notificationService;
+            _activityLogService = activityLogService;
         }
 
         public async Task<ApiResponse<ReservationResponseDTO>> CreateAsync(Guid userId, CreateReservationDTO dto)
@@ -71,7 +82,8 @@ namespace Parkly_Backend.Services
                     DepartureTime = dto.DepartureTime,
                     TotalPrice = totalPrice,
                     Status = ReservationStatus.Confirmed,
-                    QrCode = qrCode
+                    QrCode = qrCode,
+                    CreatedAt = DateTime.UtcNow
                 };
 
                 await _unitOfWork.Reservations.AddAsync(reservation);
@@ -304,6 +316,33 @@ namespace Parkly_Backend.Services
 
             await _notificationService.NotifyAdminsAsync(type, adminTitle, adminMessage,
                 parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
+
+            if (type == NotificationType.Booking)
+            {
+                await _activityLogService.LogAsync(
+                    eventType: "NewBooking",
+                    category: "Reservation",
+                    description: $"New booking at {parking.Name} — #{bookingReference}",
+                    actorUserId: reservation.UserId,
+                    actorName: customerName,
+                    targetEntityId: reservation.ReservationId,
+                    targetEntityType: "Reservation",
+                    parkingId: parking.ParkingId,
+                    createdAt: DateTime.UtcNow);
+            }
+            else if (type == NotificationType.Cancellation)
+            {
+                await _activityLogService.LogAsync(
+                    eventType: "Cancellation",
+                    category: "Reservation",
+                    description: $"{customerName} cancelled booking #{bookingReference} at {parking.Name}",
+                    actorUserId: reservation.UserId,
+                    actorName: customerName,
+                    targetEntityId: reservation.ReservationId,
+                    targetEntityType: "Reservation",
+                    parkingId: parking.ParkingId,
+                    createdAt: DateTime.UtcNow);
+            }
         }
 
         public async Task<ApiResponse<List<ReservationResponseDTO>>> GetUserReservationsAsync(Guid userId)
@@ -458,7 +497,7 @@ namespace Parkly_Backend.Services
             }
 
             var rows = await filteredQuery
-                .OrderByDescending(r => r.ArrivalTime)
+                .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
 
             if (isBookingReferenceSearch)
@@ -538,7 +577,8 @@ namespace Parkly_Backend.Services
                 DurationHours = Math.Round(duration.TotalHours, 1),
                 DurationFormatted = FormatReservationDuration(duration),
                 TotalPrice = reservation.TotalPrice,
-                Status = ToOwnerStatus(reservation.Status)
+                Status = ToOwnerStatus(reservation.Status),
+                CreatedAt = reservation.CreatedAt
             };
         }
 

@@ -20,15 +20,23 @@ namespace Parkly_Backend.Services
         private readonly ILogger<AccessService> _logger;
         private readonly IParkingSpacesService _spacesService;
         private readonly INotificationService _notificationService;
+        private readonly IActivityLogService _activityLogService;
 
-        public AccessService(IUnitOfWork unitOfWork, IOccupancyService occupancyService, IOptions<JwtOptions>? jwtOptions, ILogger<AccessService> logger,IParkingSpacesService spacesService, INotificationService notificationService)
+        public AccessService(
+            IUnitOfWork unitOfWork,
+            IOccupancyService occupancyService,
+            IOptions<JwtOptions>? jwtOptions,
+            ILogger<AccessService> logger,
+            IParkingSpacesService spacesService,
+            INotificationService notificationService,
+            IActivityLogService activityLogService)
         {
             _unitOfWork = unitOfWork;
             _occupancyService = occupancyService;
             _logger = logger;
-            _spacesService =spacesService;
+            _spacesService = spacesService;
             _notificationService = notificationService;
-
+            _activityLogService = activityLogService;
         }
 
         public async Task<ApiResponse> ProcessScanAsync(AccessScanDTO dto)
@@ -270,6 +278,22 @@ namespace Parkly_Backend.Services
 
             await _notificationService.CreateAsync(reservation.UserId, NotificationType.Update, driverTitle, driverMessage,
                 parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
+
+            var eventType = scanType == ScanType.Entry ? "CheckIn" : "CheckOut";
+            var description = scanType == ScanType.Entry
+                ? $"{customerName} checked in to {parking.Name} — {reservation.ParkingSpace!.SpotNumber}"
+                : $"{customerName} checked out from {parking.Name} — {reservation.ParkingSpace!.SpotNumber}";
+
+            await _activityLogService.LogAsync(
+                eventType: eventType,
+                category: "Access",
+                description: description,
+                actorUserId: reservation.UserId,
+                actorName: customerName,
+                targetEntityId: reservation.ReservationId,
+                targetEntityType: "Reservation",
+                parkingId: parking.ParkingId,
+                createdAt: timestamp);
         }
 
         private static CheckOutResponseDTO BuildCheckOutResponse(Reservation reservation, DateTime exitTime)

@@ -46,7 +46,7 @@ namespace Parkly_Backend.Data.Repositories
                 .Include(r => r.User)
                 .Include(r => r.AccessLogs)
                 .Where(r => r.UserId == userId)
-                .OrderByDescending(r => r.ArrivalTime)
+                .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
         }
 
@@ -264,9 +264,9 @@ namespace Parkly_Backend.Data.Repositories
                     .ThenInclude(ps => ps.Parking)
                 .Include(r => r.User)
                 .Where(r =>
-                    r.ArrivalTime >= since &&
+                    r.CreatedAt >= since &&
                     (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.CheckedIn))
-                .OrderByDescending(r => r.ArrivalTime)
+                .OrderByDescending(r => r.CreatedAt)
                 .Take(take)
                 .ToListAsync();
         }

@@ -156,6 +156,7 @@ namespace Parkly_Backend
             builder.Services.AddScoped<IDashboardService, DashboardService>();
             builder.Services.AddScoped<INotificationService, NotificationService>();
             builder.Services.AddScoped<IFcmPushService, FcmPushService>();
+            builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
             builder.Services.AddScoped<IReportsService, ReportsService>();
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
 

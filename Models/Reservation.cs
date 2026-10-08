@@ -18,6 +18,7 @@ namespace Parkly_Backend.Models
         public decimal TotalPrice { get; set; }
         [MaxLength(50)]
         public ReservationStatus Status { get; set; } = ReservationStatus.Confirmed;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         [Column("QrCodeHash")]
         [MaxLength(255)]
         public string? QrCode { get; set; }

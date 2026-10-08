@@ -30,9 +30,19 @@ namespace Parkly_Backend.Services
         private readonly ILogger<AccountService> _logger;
         private readonly IStorageService _storageService;
         private readonly SupabaseOptions _supabaseOptions;
+        private readonly IActivityLogService _activityLogService;
         private static readonly Random _random = new Random();
         
-        public AccountService(UserManager<AppUser> userManager, IMapper mapper, IEmailService emailService, IUnitOfWork unitOfWork, IOptions<JwtOptions> jwtOptions, ILogger<AccountService> logger, IStorageService storageService, IOptions<SupabaseOptions> supabaseOptions)
+        public AccountService(
+            UserManager<AppUser> userManager,
+            IMapper mapper,
+            IEmailService emailService,
+            IUnitOfWork unitOfWork,
+            IOptions<JwtOptions> jwtOptions,
+            ILogger<AccountService> logger,
+            IStorageService storageService,
+            IOptions<SupabaseOptions> supabaseOptions,
+            IActivityLogService activityLogService)
         {
             _userManager = userManager;
             _mapper = mapper;
@@ -42,6 +52,7 @@ namespace Parkly_Backend.Services
             _logger = logger;
             _storageService = storageService;
             _supabaseOptions = supabaseOptions.Value;
+            _activityLogService = activityLogService;
         }
         public (string Token, string Jti) GenerateJwtToken(AppUser user)
         {
@@ -110,6 +121,15 @@ namespace Parkly_Backend.Services
             }
             
             await SendVerificationEmailAsync(newUser);
+
+            await _activityLogService.LogAsync(
+                eventType: "NewAccount",
+                category: "Account",
+                description: $"{newUser.FullName} created a new account",
+                actorUserId: newUser.Id,
+                actorName: newUser.FullName,
+                targetEntityId: newUser.Id,
+                targetEntityType: "User");
 
             _logger.LogInformation("Account created successfully for email {Email}", user.Email);
             return ApiResponse.Success("Account is created successfully! Please verify your email.");
@@ -180,6 +200,16 @@ namespace Parkly_Backend.Services
                 await SendVerificationEmailAsync(newUser);
 
                 await _unitOfWork.CommitTransactionAsync();
+
+                await _activityLogService.LogAsync(
+                    eventType: "OwnerApplication",
+                    category: "Account",
+                    description: $"{newUser.FullName} submitted owner application ({newOwner.CompanyName})",
+                    actorUserId: newUser.Id,
+                    actorName: newUser.FullName,
+                    targetEntityId: newUser.Id,
+                    targetEntityType: "ParkingOwner");
+
                 return ApiResponse.Success("Parking owner account created successfully! Please verify your email.");
             }
             catch
