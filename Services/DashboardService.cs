@@ -243,20 +243,5 @@ namespace Parkly_Backend.Services
             var activities = await _activityLogService.GetOwnerRecentActivityAsync(ownerId, limit);
             return ApiResponse<List<ActivityFeedItemDTO>>.Success("Recent activity retrieved successfully.", activities);
         }
-
-        private static string FormatTimeAgo(DateTime timestamp, DateTime now)
-        {
-            var elapsed = now - timestamp;
-            if (elapsed.TotalMinutes < 1) return "just now";
-            if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes} min ago";
-            if (elapsed.TotalHours < 24)
-            {
-                var h = (int)elapsed.TotalHours;
-                var m = elapsed.Minutes;
-                return m > 0 ? $"{h}h {m}m ago" : $"{h}h ago";
-            }
-            var d = (int)elapsed.TotalDays;
-            return d == 1 ? "1 day ago" : $"{d} days ago";
-        }
     }
 }

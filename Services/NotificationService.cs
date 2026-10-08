@@ -36,20 +36,6 @@ namespace Parkly_Backend.Services
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
 
-            var user = await _userManager.FindByIdAsync(userId.ToString());
-            if (user?.Role == UserRole.Admin)
-            {
-                var hasAny = await _unitOfWork.Notifications.AnyAsync(n => n.RecipientUserId == userId);
-                if (!hasAny)
-                {
-                    await BackfillAdminNotificationsAsync(userId);
-                }
-                else
-                {
-                    await FixAdminNotificationTimestampsAsync(userId);
-                }
-            }
-
             var (items, totalCount) = await _unitOfWork.Notifications.GetForRecipientAsync(userId, type, isRead, page, pageSize);
 
             return ApiResponse<NotificationPageDTO>.Success("Notifications retrieved successfully.", new NotificationPageDTO
@@ -61,20 +47,6 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<NotificationSummaryDTO>> GetSummaryAsync(Guid userId)
         {
-            var user = await _userManager.FindByIdAsync(userId.ToString());
-            if (user?.Role == UserRole.Admin)
-            {
-                var hasAny = await _unitOfWork.Notifications.AnyAsync(n => n.RecipientUserId == userId);
-                if (!hasAny)
-                {
-                    await BackfillAdminNotificationsAsync(userId);
-                }
-                else
-                {
-                    await FixAdminNotificationTimestampsAsync(userId);
-                }
-            }
-
             var grouped = await _unitOfWork.Notifications.GetSummaryAsync(userId);
             var byType = Enum.GetValues<NotificationType>().Select(type =>
             {
@@ -148,138 +120,7 @@ namespace Parkly_Backend.Services
             }
         }
 
-        private async Task BackfillAdminNotificationsAsync(Guid adminId)
-        {
-            try
-            {
-                var recentReservations = await _unitOfWork.Reservations.Query()
-                    .Include(r => r.User)
-                    .Include(r => r.ParkingSpace)
-                        .ThenInclude(ps => ps.Parking)
-                    .ToListAsync();
 
-                var reservationIds = recentReservations.Select(r => r.ReservationId).ToList();
-
-                var originalDates = await _unitOfWork.Notifications.Query()
-                    .Where(n => n.ReservationId != null 
-                             && reservationIds.Contains(n.ReservationId.Value) 
-                             && n.RecipientUserId != adminId)
-                    .GroupBy(n => n.ReservationId!.Value)
-                    .Select(g => new { ReservationId = g.Key, CreatedAt = g.Min(x => x.CreatedAt) })
-                    .ToDictionaryAsync(x => x.ReservationId, x => x.CreatedAt);
-
-                var reservationsWithDates = recentReservations.Select(r =>
-                {
-                    var creationDate = originalDates.TryGetValue(r.ReservationId, out var dt)
-                        ? dt
-                        : (r.ArrivalTime <= DateTime.UtcNow ? r.ArrivalTime : DateTime.UtcNow);
-                    return new { Reservation = r, CreatedAt = creationDate };
-                })
-                .OrderByDescending(x => x.CreatedAt)
-                .Take(25)
-                .ToList();
-
-                foreach (var item in reservationsWithDates)
-                {
-                    var r = item.Reservation;
-                    var parking = r.ParkingSpace?.Parking;
-                    var bookingRef = $"PK-{r.ReservationId.ToString("N")[^4..].ToUpperInvariant()}";
-                    var customer = string.IsNullOrWhiteSpace(r.User?.FullName) ? "A customer" : r.User.FullName;
-
-                    await _unitOfWork.Notifications.AddAsync(new Notification
-                    {
-                        RecipientUserId = adminId,
-                        Type = NotificationType.Booking,
-                        Title = $"New Booking — {bookingRef}",
-                        Message = $"{customer} reserved spot {r.ParkingSpace?.SpotNumber ?? "spot"} at {parking?.Name ?? "Parking"} for ${r.TotalPrice:F2}.",
-                        CreatedAt = item.CreatedAt,
-                        IsRead = false,
-                        ParkingId = parking?.ParkingId,
-                        ReservationId = r.ReservationId,
-                        SpaceId = r.SpaceId
-                    });
-                }
-
-                var pendingOwners = await _unitOfWork.ParkingOwners.Query()
-                    .Include(po => po.User)
-                    .Where(po => po.VerificationStatus == VerificationStatus.Pending)
-                    .ToListAsync();
-
-                foreach (var po in pendingOwners)
-                {
-                    var ownerName = po.User?.FullName ?? "New Owner";
-                    await _unitOfWork.Notifications.AddAsync(new Notification
-                    {
-                        RecipientUserId = adminId,
-                        Type = NotificationType.Alert,
-                        Title = "New Owner Application",
-                        Message = $"{po.CompanyName} ({ownerName}) submitted an owner application awaiting verification.",
-                        CreatedAt = po.User?.CreatedAt ?? DateTime.UtcNow,
-                        IsRead = false
-                    });
-                }
-
-                await _unitOfWork.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to backfill admin notifications for user {AdminId}.", adminId);
-            }
-        }
-
-        private async Task FixAdminNotificationTimestampsAsync(Guid adminId)
-        {
-            try
-            {
-                var adminNotifications = await _unitOfWork.Notifications.Query()
-                    .Where(n => n.RecipientUserId == adminId && n.ReservationId != null)
-                    .ToListAsync();
-
-                if (!adminNotifications.Any()) return;
-
-                var reservationIds = adminNotifications
-                    .Select(n => n.ReservationId!.Value)
-                    .Distinct()
-                    .ToList();
-
-                var originalDates = await _unitOfWork.Notifications.Query()
-                    .Where(n => n.ReservationId != null 
-                             && reservationIds.Contains(n.ReservationId.Value) 
-                             && n.RecipientUserId != adminId)
-                    .GroupBy(n => n.ReservationId!.Value)
-                    .Select(g => new { ReservationId = g.Key, CreatedAt = g.Min(x => x.CreatedAt) })
-                    .ToDictionaryAsync(x => x.ReservationId, x => x.CreatedAt);
-
-                bool updated = false;
-                foreach (var notif in adminNotifications)
-                {
-                    if (originalDates.TryGetValue(notif.ReservationId!.Value, out var trueCreatedAt))
-                    {
-                        if (notif.CreatedAt != trueCreatedAt)
-                        {
-                            notif.CreatedAt = trueCreatedAt;
-                            _unitOfWork.Notifications.Update(notif);
-                            updated = true;
-                        }
-                    }
-                    else if (notif.CreatedAt > DateTime.UtcNow)
-                    {
-                        notif.CreatedAt = DateTime.UtcNow;
-                        _unitOfWork.Notifications.Update(notif);
-                        updated = true;
-                    }
-                }
-
-                if (updated)
-                {
-                    await _unitOfWork.SaveChangesAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to align admin notification timestamps.");
-            }
-        }
 
         private static NotificationDTO ToDto(Notification notification) => new()
         {
