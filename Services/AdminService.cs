@@ -276,17 +276,28 @@ namespace Parkly_Backend.Services
                 });
             }
             var recentBookings = await _unitOfWork.Reservations.GetRecentPlatformBookingsAsync(since, limit);
+            var bookingIds = recentBookings.Select(b => b.ReservationId).ToList();
+            var bookingDates = await _unitOfWork.Notifications.Query()
+                .Where(n => n.ReservationId != null && bookingIds.Contains(n.ReservationId.Value))
+                .GroupBy(n => n.ReservationId!.Value)
+                .Select(g => new { ReservationId = g.Key, CreatedAt = g.Min(x => x.CreatedAt) })
+                .ToDictionaryAsync(x => x.ReservationId, x => x.CreatedAt);
+
             foreach (var reservation in recentBookings)
             {
                 var bookingRef = $"RES-{reservation.ReservationId.ToString("N")[^4..].ToUpperInvariant()}";
                 var parkingName = reservation.ParkingSpace?.Parking?.Name ?? "Unknown";
+                var timestamp = bookingDates.TryGetValue(reservation.ReservationId, out var dt)
+                    ? dt
+                    : (reservation.ArrivalTime <= now ? reservation.ArrivalTime : now);
+
                 feedItems.Add(new AdminActivityFeedItemDTO
                 {
                     Type = "NewBooking",
                     Icon = "calendar_today",
                     Description = $"New booking at {parkingName} — #{bookingRef}",
-                    Timestamp = reservation.ArrivalTime,
-                    TimeAgo = FormatTimeAgo(reservation.ArrivalTime, now)
+                    Timestamp = timestamp,
+                    TimeAgo = FormatTimeAgo(timestamp, now)
                 });
             }
             var parkings = await _unitOfWork.Parkings.GetParkingsWithSpacesAsync();

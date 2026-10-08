@@ -83,12 +83,32 @@ namespace Parkly_Backend.Data
                         .Include(r => r.User)
                         .Include(r => r.ParkingSpace)
                             .ThenInclude(ps => ps.Parking)
-                        .OrderByDescending(r => r.ArrivalTime)
-                        .Take(20)
                         .ToListAsync();
 
-                    foreach (var r in recentReservations)
+                    var reservationIds = recentReservations.Select(r => r.ReservationId).ToList();
+
+                    var originalDates = await unitOfWork.Notifications.Query()
+                        .Where(n => n.ReservationId != null 
+                                 && reservationIds.Contains(n.ReservationId.Value) 
+                                 && n.RecipientUserId != admin.Id)
+                        .GroupBy(n => n.ReservationId!.Value)
+                        .Select(g => new { ReservationId = g.Key, CreatedAt = g.Min(x => x.CreatedAt) })
+                        .ToDictionaryAsync(x => x.ReservationId, x => x.CreatedAt);
+
+                    var reservationsWithDates = recentReservations.Select(r =>
                     {
+                        var creationDate = originalDates.TryGetValue(r.ReservationId, out var dt)
+                            ? dt
+                            : (r.ArrivalTime <= DateTime.UtcNow ? r.ArrivalTime : DateTime.UtcNow);
+                        return new { Reservation = r, CreatedAt = creationDate };
+                    })
+                    .OrderByDescending(x => x.CreatedAt)
+                    .Take(25)
+                    .ToList();
+
+                    foreach (var item in reservationsWithDates)
+                    {
+                        var r = item.Reservation;
                         var parking = r.ParkingSpace?.Parking;
                         var bookingRef = $"PK-{r.ReservationId.ToString("N")[^4..].ToUpperInvariant()}";
                         var customer = string.IsNullOrWhiteSpace(r.User?.FullName) ? "A customer" : r.User.FullName;
@@ -99,7 +119,7 @@ namespace Parkly_Backend.Data
                             Type = NotificationType.Booking,
                             Title = $"New Booking — {bookingRef}",
                             Message = $"{customer} reserved spot {r.ParkingSpace?.SpotNumber ?? "spot"} at {parking?.Name ?? "Parking"} for ${r.TotalPrice:F2}.",
-                            CreatedAt = r.ArrivalTime,
+                            CreatedAt = item.CreatedAt,
                             IsRead = false,
                             ParkingId = parking?.ParkingId,
                             ReservationId = r.ReservationId,
