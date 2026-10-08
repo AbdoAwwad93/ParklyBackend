@@ -12,18 +12,18 @@ namespace Parkly_Backend.Services
     public class NotificationService : INotificationService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IFcmPushService _pushService;
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly UserManager<AppUser> _userManager;
         private readonly ILogger<NotificationService> _logger;
 
         public NotificationService(
             IUnitOfWork unitOfWork,
-            IFcmPushService pushService,
+            IServiceScopeFactory scopeFactory,
             UserManager<AppUser> userManager,
             ILogger<NotificationService> logger)
         {
             _unitOfWork = unitOfWork;
-            _pushService = pushService;
+            _scopeFactory = scopeFactory;
             _userManager = userManager;
             _logger = logger;
         }
@@ -85,18 +85,21 @@ namespace Parkly_Backend.Services
             });
             await _unitOfWork.SaveChangesAsync();
 
+            var pushData = new Dictionary<string, string>
+            {
+                ["notificationType"] = type.ToString(),
+                ["parkingId"] = parkingId?.ToString() ?? "",
+                ["reservationId"] = reservationId?.ToString() ?? "",
+                ["spaceId"] = spaceId?.ToString() ?? ""
+            };
+
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await _pushService.SendToUserAsync(recipientUserId, title, message,
-                        new Dictionary<string, string>
-                        {
-                            ["notificationType"] = type.ToString(),
-                            ["parkingId"] = parkingId?.ToString() ?? "",
-                            ["reservationId"] = reservationId?.ToString() ?? "",
-                            ["spaceId"] = spaceId?.ToString() ?? ""
-                        });
+                    using var scope = _scopeFactory.CreateScope();
+                    var pushService = scope.ServiceProvider.GetRequiredService<IFcmPushService>();
+                    await pushService.SendToUserAsync(recipientUserId, title, message, pushData);
                 }
                 catch (Exception ex)
                 {

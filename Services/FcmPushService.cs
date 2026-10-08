@@ -1,4 +1,6 @@
 using FirebaseAdmin.Messaging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 
@@ -11,12 +13,12 @@ namespace Parkly_Backend.Services
     /// </summary>
     public class FcmPushService : IFcmPushService
     {
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<FcmPushService> _logger;
 
-        public FcmPushService(IUnitOfWork unitOfWork, ILogger<FcmPushService> logger)
+        public FcmPushService(IServiceScopeFactory scopeFactory, ILogger<FcmPushService> logger)
         {
-            _unitOfWork = unitOfWork;
+            _scopeFactory = scopeFactory;
             _logger = logger;
         }
 
@@ -31,7 +33,13 @@ namespace Parkly_Backend.Services
                     return;
                 }
 
-                var tokens = await _unitOfWork.UserFcmTokens.GetTokensByUserIdAsync(userId);
+                List<string> tokens;
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+                    tokens = await unitOfWork.UserFcmTokens.GetTokensByUserIdAsync(userId);
+                }
+
                 if (tokens.Count == 0)
                 {
                     _logger.LogDebug("No FCM tokens found for user {UserId}. Skipping push.", userId);
@@ -71,6 +79,7 @@ namespace Parkly_Backend.Services
 
                 if (response.FailureCount > 0)
                 {
+                    var staleTokens = new List<string>();
                     for (int i = 0; i < response.Responses.Count; i++)
                     {
                         if (!response.Responses[i].IsSuccess)
@@ -82,7 +91,7 @@ namespace Parkly_Backend.Services
                                 _logger.LogInformation(
                                     "Removing stale FCM token for user {UserId}: {ErrorCode}",
                                     userId, error);
-                                await _unitOfWork.UserFcmTokens.DeleteByTokenAsync(userId, tokens[i]);
+                                staleTokens.Add(tokens[i]);
                             }
                             else
                             {
@@ -90,6 +99,16 @@ namespace Parkly_Backend.Services
                                     "FCM send failed for user {UserId}, token index {Index}: {Error}",
                                     userId, i, response.Responses[i].Exception?.Message);
                             }
+                        }
+                    }
+
+                    if (staleTokens.Count > 0)
+                    {
+                        using var scope = _scopeFactory.CreateScope();
+                        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+                        foreach (var staleToken in staleTokens)
+                        {
+                            await unitOfWork.UserFcmTokens.DeleteByTokenAsync(userId, staleToken);
                         }
                     }
                 }
