@@ -157,6 +157,26 @@ namespace Parkly_Backend.Services
                 await _unitOfWork.ParkingOwners.AddAsync(parkingOwner);
                 await _unitOfWork.SaveChangesAsync();
 
+                var adminIds = await _userManager.Users
+                    .Where(u => u.Role == UserRole.Admin)
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                foreach (var adminId in adminIds)
+                {
+                    await _unitOfWork.Notifications.AddAsync(new Notification
+                    {
+                        RecipientUserId = adminId,
+                        Type = NotificationType.Alert,
+                        Title = "New Owner Application",
+                        Message = $"{newOwner.CompanyName} ({newUser.FullName}) submitted an owner application awaiting verification."
+                    });
+                }
+                if (adminIds.Count > 0)
+                {
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
                 await SendVerificationEmailAsync(newUser);
 
                 await _unitOfWork.CommitTransactionAsync();

@@ -25,6 +25,7 @@ namespace Parkly_Backend.Models.DTOs
     public class OwnerReservationListItemDTO
     {
         public Guid ReservationId { get; set; }
+        public Guid CustomerId { get; set; }
         public string BookingReference { get; set; } = string.Empty;
         public string CustomerName { get; set; } = string.Empty;
         public string CustomerEmail { get; set; } = string.Empty;

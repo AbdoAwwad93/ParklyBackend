@@ -1124,15 +1124,13 @@ namespace Parkly_Backend.Services
                 .Include(r => r.User)
                 .Include(r => r.ParkingSpace)
                     .ThenInclude(s => s.Parking)
-                .OrderBy(r => r.Status == ReservationStatus.CheckedIn ? 0 :
-                    r.Status == ReservationStatus.Confirmed ? 1 :
-                    r.Status == ReservationStatus.Completed ? 2 : 3)
-                .ThenByDescending(r => r.ArrivalTime)
+                .OrderByDescending(r => r.ArrivalTime)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(r => new
                 {
                     r.ReservationId,
+                    CustomerId = r.UserId,
                     CustomerName = r.User != null ? r.User.FullName : "Unknown",
                     CustomerEmail = r.User != null ? r.User.Email ?? "" : "",
                     LocationName = r.ParkingSpace.Parking != null ? r.ParkingSpace.Parking.Name : "Unknown",
@@ -1153,7 +1151,7 @@ namespace Parkly_Backend.Services
                 {
                     ReservationId = x.ReservationId,
                     Code = $"PK-{x.ReservationId.ToString("N")[^4..].ToUpperInvariant()}",
-                    CustomerId = Guid.Empty,
+                    CustomerId = x.CustomerId,
                     CustomerName = x.CustomerName,
                     CustomerInitials = ExtractInitials(x.CustomerName),
                     CustomerEmail = x.CustomerEmail,

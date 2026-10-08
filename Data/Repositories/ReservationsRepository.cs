@@ -31,6 +31,7 @@ namespace Parkly_Backend.Data.Repositories
             return await _dbSet
                 .Include(r => r.ParkingSpace)
                 .ThenInclude(ps => ps.Parking)
+                .Include(r => r.User)
                 .Include(r => r.AccessLogs)
                 .Where(r => r.UserId == userId && r.Status != ReservationStatus.Completed && r.Status != ReservationStatus.Cancelled)
                 .OrderBy(r => r.ArrivalTime)
@@ -42,6 +43,7 @@ namespace Parkly_Backend.Data.Repositories
             return await _dbSet
                 .Include(r => r.ParkingSpace)
                 .ThenInclude(ps => ps.Parking)
+                .Include(r => r.User)
                 .Include(r => r.AccessLogs)
                 .Where(r => r.UserId == userId)
                 .OrderByDescending(r => r.ArrivalTime)

@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Parkly_Backend.Data.Repositories;
 using Parkly_Backend.Interfaces;
 using Parkly_Backend.Models;
@@ -11,12 +13,18 @@ namespace Parkly_Backend.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFcmPushService _pushService;
+        private readonly UserManager<AppUser> _userManager;
         private readonly ILogger<NotificationService> _logger;
 
-        public NotificationService(IUnitOfWork unitOfWork, IFcmPushService pushService, ILogger<NotificationService> logger)
+        public NotificationService(
+            IUnitOfWork unitOfWork,
+            IFcmPushService pushService,
+            UserManager<AppUser> userManager,
+            ILogger<NotificationService> logger)
         {
             _unitOfWork = unitOfWork;
             _pushService = pushService;
+            _userManager = userManager;
             _logger = logger;
         }
 
@@ -28,6 +36,17 @@ namespace Parkly_Backend.Services
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
             var (items, totalCount) = await _unitOfWork.Notifications.GetForRecipientAsync(userId, type, isRead, page, pageSize);
+
+            if (totalCount == 0)
+            {
+                var user = await _userManager.FindByIdAsync(userId.ToString());
+                if (user?.Role == UserRole.Admin)
+                {
+                    await BackfillAdminNotificationsAsync(userId);
+                    (items, totalCount) = await _unitOfWork.Notifications.GetForRecipientAsync(userId, type, isRead, page, pageSize);
+                }
+            }
+
             return ApiResponse<NotificationPageDTO>.Success("Notifications retrieved successfully.", new NotificationPageDTO
             {
                 Items = items.Select(ToDto).ToList(), Page = page, PageSize = pageSize,
@@ -37,6 +56,16 @@ namespace Parkly_Backend.Services
 
         public async Task<ApiResponse<NotificationSummaryDTO>> GetSummaryAsync(Guid userId)
         {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user?.Role == UserRole.Admin)
+            {
+                var hasAny = await _unitOfWork.Notifications.AnyAsync(n => n.RecipientUserId == userId);
+                if (!hasAny)
+                {
+                    await BackfillAdminNotificationsAsync(userId);
+                }
+            }
+
             var grouped = await _unitOfWork.Notifications.GetSummaryAsync(userId);
             var byType = Enum.GetValues<NotificationType>().Select(type =>
             {
@@ -93,6 +122,80 @@ namespace Parkly_Backend.Services
                     _logger.LogError(ex, "Fire-and-forget FCM push failed for user {UserId}.", recipientUserId);
                 }
             });
+        }
+
+        public async Task NotifyAdminsAsync(NotificationType type, string title, string message, Guid? parkingId = null, Guid? reservationId = null, Guid? spaceId = null)
+        {
+            var adminIds = await _userManager.Users
+                .Where(u => u.Role == UserRole.Admin)
+                .Select(u => u.Id)
+                .ToListAsync();
+
+            if (adminIds.Count == 0) return;
+
+            foreach (var adminId in adminIds)
+            {
+                await CreateAsync(adminId, type, title, message, parkingId, reservationId, spaceId);
+            }
+        }
+
+        private async Task BackfillAdminNotificationsAsync(Guid adminId)
+        {
+            try
+            {
+                var recentReservations = await _unitOfWork.Reservations.Query()
+                    .Include(r => r.User)
+                    .Include(r => r.ParkingSpace)
+                        .ThenInclude(ps => ps.Parking)
+                    .OrderByDescending(r => r.ArrivalTime)
+                    .Take(20)
+                    .ToListAsync();
+
+                foreach (var r in recentReservations)
+                {
+                    var parking = r.ParkingSpace?.Parking;
+                    var bookingRef = $"PK-{r.ReservationId.ToString("N")[^4..].ToUpperInvariant()}";
+                    var customer = string.IsNullOrWhiteSpace(r.User?.FullName) ? "A customer" : r.User.FullName;
+
+                    await _unitOfWork.Notifications.AddAsync(new Notification
+                    {
+                        RecipientUserId = adminId,
+                        Type = NotificationType.Booking,
+                        Title = $"New Booking — {bookingRef}",
+                        Message = $"{customer} reserved spot {r.ParkingSpace?.SpotNumber ?? "spot"} at {parking?.Name ?? "Parking"} for ${r.TotalPrice:F2}.",
+                        CreatedAt = r.ArrivalTime,
+                        IsRead = false,
+                        ParkingId = parking?.ParkingId,
+                        ReservationId = r.ReservationId,
+                        SpaceId = r.SpaceId
+                    });
+                }
+
+                var pendingOwners = await _unitOfWork.ParkingOwners.Query()
+                    .Include(po => po.User)
+                    .Where(po => po.VerificationStatus == VerificationStatus.Pending)
+                    .ToListAsync();
+
+                foreach (var po in pendingOwners)
+                {
+                    var ownerName = po.User?.FullName ?? "New Owner";
+                    await _unitOfWork.Notifications.AddAsync(new Notification
+                    {
+                        RecipientUserId = adminId,
+                        Type = NotificationType.Alert,
+                        Title = "New Owner Application",
+                        Message = $"{po.CompanyName} ({ownerName}) submitted an owner application awaiting verification.",
+                        CreatedAt = po.User?.CreatedAt ?? DateTime.UtcNow,
+                        IsRead = false
+                    });
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to backfill admin notifications for user {AdminId}.", adminId);
+            }
         }
 
         private static NotificationDTO ToDto(Notification notification) => new()

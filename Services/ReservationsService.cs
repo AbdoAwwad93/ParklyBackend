@@ -285,6 +285,25 @@ namespace Parkly_Backend.Services
 
             await _notificationService.CreateAsync(reservation.UserId, type, driverTitle, driverMessage,
                 parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
+
+            var adminTitle = type switch
+            {
+                NotificationType.Booking => $"New Booking — {bookingReference}",
+                NotificationType.Cancellation => $"Booking Cancelled — {bookingReference}",
+                NotificationType.Update => $"Booking Updated — {bookingReference}",
+                _ => $"Booking Update — {bookingReference}"
+            };
+
+            var adminMessage = type switch
+            {
+                NotificationType.Booking => $"{customerName} booked spot {reservation.ParkingSpace.SpotNumber} at {parking.Name} for ${reservation.TotalPrice:F2}.",
+                NotificationType.Cancellation => $"{customerName} cancelled booking {bookingReference} at {parking.Name}.",
+                NotificationType.Update => $"{customerName} updated booking {bookingReference} at {parking.Name}.",
+                _ => $"{customerName} updated booking {bookingReference}."
+            };
+
+            await _notificationService.NotifyAdminsAsync(type, adminTitle, adminMessage,
+                parking.ParkingId, reservation.ReservationId, reservation.SpaceId);
         }
 
         public async Task<ApiResponse<List<ReservationResponseDTO>>> GetUserReservationsAsync(Guid userId)
@@ -397,6 +416,8 @@ namespace Parkly_Backend.Services
             pageSize = Math.Clamp(pageSize, 1, 100);
 
             var baseQuery = _unitOfWork.Reservations.Query()
+                .AsSplitQuery()
+                .AsNoTracking()
                 .Include(r => r.User)
                 .Include(r => r.ParkingSpace)
                     .ThenInclude(s => s.Parking)
@@ -437,10 +458,7 @@ namespace Parkly_Backend.Services
             }
 
             var rows = await filteredQuery
-                .OrderBy(r => r.Status == ReservationStatus.CheckedIn ? 0 :
-                    r.Status == ReservationStatus.Confirmed ? 1 :
-                    r.Status == ReservationStatus.Completed ? 2 : 3)
-                .ThenBy(r => r.ArrivalTime)
+                .OrderByDescending(r => r.ArrivalTime)
                 .ToListAsync();
 
             if (isBookingReferenceSearch)
@@ -505,6 +523,7 @@ namespace Parkly_Backend.Services
             return new OwnerReservationListItemDTO
             {
                 ReservationId = reservation.ReservationId,
+                CustomerId = reservation.UserId,
                 BookingReference = BuildBookingReference(reservation.ReservationId),
                 CustomerName = customerName,
                 CustomerEmail = reservation.User?.Email ?? string.Empty,

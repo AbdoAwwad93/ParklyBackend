@@ -13,5 +13,6 @@ namespace Parkly_Backend.Interfaces
         Task<ApiResponse> MarkAllReadAsync(Guid userId);
         Task CreateAsync(Guid recipientUserId, NotificationType type, string title, string message,
             Guid? parkingId = null, Guid? reservationId = null, Guid? spaceId = null);
+        Task NotifyAdminsAsync(NotificationType type, string title, string message,Guid? parkingId = null, Guid? reservationId = null, Guid? spaceId = null);
     }
 }
