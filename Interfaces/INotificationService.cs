@@ -14,5 +14,8 @@ namespace Parkly_Backend.Interfaces
         Task CreateAsync(Guid recipientUserId, NotificationType type, string title, string message,
             Guid? parkingId = null, Guid? reservationId = null, Guid? spaceId = null);
         Task NotifyAdminsAsync(NotificationType type, string title, string message,Guid? parkingId = null, Guid? reservationId = null, Guid? spaceId = null);
+        Task<ApiResponse<PushNotificationSettingsDTO>> GetPushNotificationSettingAsync(Guid userId);
+        Task<ApiResponse<PushNotificationSettingsDTO>> UpdatePushNotificationSettingAsync(Guid userId, PushNotificationSettingsDTO dto);
+        Task<ApiResponse<PushNotificationSettingsDTO>> TogglePushNotificationsAsync(Guid userId);
     }
 }

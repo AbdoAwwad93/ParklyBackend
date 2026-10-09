@@ -42,5 +42,17 @@ namespace Parkly_Backend.Controllers
         [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> MarkAllRead()
             => Ok(await _service.MarkAllReadAsync(User.GetRequiredUserId()));
+
+        /// <summary>Returns the push notification settings for the authenticated user.</summary>
+        [HttpGet("settings")]
+        [ProducesResponseType(typeof(ApiResponse<PushNotificationSettingsDTO>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetSettings()
+            => Ok(await _service.GetPushNotificationSettingAsync(User.GetRequiredUserId()));
+
+        /// <summary>Updates the push notification settings for the authenticated user.</summary>
+        [HttpPut("settings")]
+        [ProducesResponseType(typeof(ApiResponse<PushNotificationSettingsDTO>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> UpdateSettings([FromBody] PushNotificationSettingsDTO dto)
+            => Ok(await _service.UpdatePushNotificationSettingAsync(User.GetRequiredUserId(), dto));
     }
 }

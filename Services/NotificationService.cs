@@ -98,6 +98,14 @@ namespace Parkly_Backend.Services
                 try
                 {
                     using var scope = _scopeFactory.CreateScope();
+                    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+                    var recipient = await userManager.FindByIdAsync(recipientUserId.ToString());
+                    if (recipient != null && !recipient.PushNotificationsEnabled)
+                    {
+                        _logger.LogInformation("Push notification skipped for user {UserId} because push notifications are disabled.", recipientUserId);
+                        return;
+                    }
+
                     var pushService = scope.ServiceProvider.GetRequiredService<IFcmPushService>();
                     await pushService.SendToUserAsync(recipientUserId, title, message, pushData);
                 }
@@ -105,6 +113,67 @@ namespace Parkly_Backend.Services
                 {
                     _logger.LogError(ex, "Fire-and-forget FCM push failed for user {UserId}.", recipientUserId);
                 }
+            });
+        }
+
+        public async Task<ApiResponse<PushNotificationSettingsDTO>> GetPushNotificationSettingAsync(Guid userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return ApiResponse<PushNotificationSettingsDTO>.Failure("User not found.");
+            }
+
+            return ApiResponse<PushNotificationSettingsDTO>.Success("Push notification setting retrieved successfully.", new PushNotificationSettingsDTO
+            {
+                PushNotificationsEnabled = user.PushNotificationsEnabled
+            });
+        }
+
+        public async Task<ApiResponse<PushNotificationSettingsDTO>> UpdatePushNotificationSettingAsync(Guid userId, PushNotificationSettingsDTO dto)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return ApiResponse<PushNotificationSettingsDTO>.Failure("User not found.");
+            }
+
+            user.PushNotificationsEnabled = dto.PushNotificationsEnabled;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                return ApiResponse<PushNotificationSettingsDTO>.Failure($"Failed to update setting: {errors}");
+            }
+
+            return ApiResponse<PushNotificationSettingsDTO>.Success("Push notification setting updated successfully.", new PushNotificationSettingsDTO
+            {
+                PushNotificationsEnabled = user.PushNotificationsEnabled
+            });
+        }
+
+        public async Task<ApiResponse<PushNotificationSettingsDTO>> TogglePushNotificationsAsync(Guid userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return ApiResponse<PushNotificationSettingsDTO>.Failure("User not found.");
+            }
+
+            user.PushNotificationsEnabled = !user.PushNotificationsEnabled;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                return ApiResponse<PushNotificationSettingsDTO>.Failure($"Failed to toggle setting: {errors}");
+            }
+
+            var statusText = user.PushNotificationsEnabled ? "enabled" : "disabled";
+            return ApiResponse<PushNotificationSettingsDTO>.Success($"Push notifications {statusText}.", new PushNotificationSettingsDTO
+            {
+                PushNotificationsEnabled = user.PushNotificationsEnabled
             });
         }
 
